@@ -1,0 +1,14 @@
+[
+    {
+        "awsconfig": {
+            "region": "mx-central-1",
+            "output": "text"
+        }
+    },
+    {
+        "aws-servers-ids": {
+            "proxy-server-id": "i-03773ed538dbc7261",
+            "minecraft-server-id": "i-0bf4e1fed1bcbc6cb"
+        }
+    }
+]

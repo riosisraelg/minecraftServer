@@ -1,0 +1,29 @@
+# 🗝 AWS Security
+*.pem
+infra/mcServer-kp.pem
+
+# 💾 Backups & Large Data
+backups/
+*.tar
+*.zip
+*.gz
+
+# 🎮 Minecraft Server Files (Generated)
+*.jar
+*.txt
+*.log
+eula.txt
+server.properties
+logs/
+world/
+libraries/
+mods/
+user_jvm_args.txt
+
+# ⚙️ OS & Environment
+.DS_Store
+.env
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
