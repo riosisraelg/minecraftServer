@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-
 # ===== CONFIG =====
 MC_USER="minecraft"
 MC_DIR="/opt/minecraft"
@@ -23,8 +22,8 @@ SCREEN_NAME="minecraft"
 # ===== FUNCTIONS =====
 server_install_packages() {
     sudo yum update -y
-    sudo yum install -y java-17-openjdk-devel
-    sudo yum install -y java-21-openjdk-devel
+    sudo yum install -y java-17-amazon-corretto-devel
+    sudo yum install -y java-21-amazon-corretto-devel
     sudo yum install -y screen
     sudo yum install -y git
 }
@@ -65,16 +64,35 @@ mc_server_environment() {
 
             # Create start and stop scripts
             sudo -u "${MC_USER}" bash -c "echo '-Xmx1024M -Xms1024M' > user_jvm_args.txt"
-            sudo -u "${MC_USER}" bash -c "printf '#!/bin/bash\njava @user_jvm_args.txt -jar ${VANILLA_MC_DIR}/${VANILLA_MC_INSTALLER_JAR} nogui\n' > start"
+            
+            # Start script
+            cat <<EOF | sudo -u "${MC_USER}" tee start > /dev/null
+#!/bin/bash
+java @user_jvm_args.txt -jar ${VANILLA_MC_DIR}/${VANILLA_MC_INSTALLER_JAR} nogui
+EOF
             sudo chmod +x start
-            sudo -u "${MC_USER}" bash -c "printf '#!/bin/bash\nkill -9 \$(ps -ef | pgrep -f \"java\")\n' > stop"
+
+            # Stop script
+            cat <<EOF | sudo -u "${MC_USER}" tee stop > /dev/null
+#!/bin/bash
+kill -9 \$(ps -ef | pgrep -f "java")
+EOF
             sudo chmod +x stop
             sleep 1
             
-            # Create service
-            cd /etc/systemd/system/
-            touch vanilla-minecraft.service
-            printf '[Unit]\nDescription=Vanilla Minecraft Server on start up\nWants=network-online.target\n[Service]\nUser=minecraft\nWorkingDirectory=/opt/minecraft/vanilla\nExecStart=/opt/minecraft/vanilla/start\nStandardInput=null\n[Install]\nWantedBy=multi-user.target' >> vanilla-minecraft.service
+            # Create service with proper sudo permissions
+            sudo bash -c "cat > /etc/systemd/system/vanilla-minecraft.service <<EOF
+[Unit]
+Description=Vanilla Minecraft Server
+Wants=network-online.target
+[Service]
+User=minecraft
+WorkingDirectory=/opt/minecraft/vanilla
+ExecStart=/opt/minecraft/vanilla/start
+StandardInput=null
+[Install]
+WantedBy=multi-user.target
+EOF"
             sudo systemctl daemon-reload
             sudo systemctl enable vanilla-minecraft.service
             sudo systemctl start vanilla-minecraft.service
@@ -93,16 +111,35 @@ mc_server_environment() {
             
             # Create start and stop scripts
             sudo -u "${MC_USER}" bash -c "echo '-Xmx1024M -Xms1024M' > user_jvm_args.txt"
-            sudo -u "${MC_USER}" bash -c "printf '#!/bin/bash\njava @user_jvm_args.txt @libraries/net/minecraftforge/forge/1.20.1-47.4.10/unix_args.txt \"\$@\"\n' > start"
+            
+            # Start script
+            cat <<EOF | sudo -u "${MC_USER}" tee start > /dev/null
+#!/bin/bash
+java @user_jvm_args.txt @libraries/net/minecraftforge/forge/1.20.1-47.4.10/unix_args.txt "\$@"
+EOF
             sudo chmod +x start
-            sudo -u "${MC_USER}" bash -c "printf '#!/bin/bash\nkill -9 \$(ps -ef | pgrep -f \"java\")\n' > stop"
+
+            # Stop script
+            cat <<EOF | sudo -u "${MC_USER}" tee stop > /dev/null
+#!/bin/bash
+kill -9 \$(ps -ef | pgrep -f "java")
+EOF
             sudo chmod +x stop
             sleep 1
             
-            # Create service
-            cd /etc/systemd/system/
-            touch forge-minecraft.service
-            printf '[Unit]\nDescription=Forge Minecraft Server on start up\nWants=network-online.target\n[Service]\nUser=minecraft\nWorkingDirectory=/opt/minecraft/forge\nExecStart=/opt/minecraft/forge/start\nStandardInput=null\n[Install]\nWantedBy=multi-user.target' >> forge-minecraft.service
+            # Create service with proper sudo permissions
+            sudo bash -c "cat > /etc/systemd/system/forge-minecraft.service <<EOF
+[Unit]
+Description=Forge Minecraft Server
+Wants=network-online.target
+[Service]
+User=minecraft
+WorkingDirectory=/opt/minecraft/forge
+ExecStart=/opt/minecraft/forge/start
+StandardInput=null
+[Install]
+WantedBy=multi-user.target
+EOF"
             sudo systemctl daemon-reload
             sudo systemctl enable forge-minecraft.service
             sudo systemctl start forge-minecraft.service
