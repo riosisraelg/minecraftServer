@@ -1,6 +1,5 @@
 # 🗝 AWS Security
 *.pem
-infra/mcServer-kp.pem
 
 # 💾 Backups & Large Data
 backups/
