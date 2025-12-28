@@ -1,14 +1,27 @@
-[
-    {
-        "awsconfig": {
-            "region": "mx-central-1",
-            "output": "text"
-        }
+{
+    "project": "mc-server",
+    "region": "us-east-1",
+    "ami_id": "ami-0c55b159cbfafe1f0",
+    "architecture": "arm64",
+    "instance_type_proxy": "t4g.nano",
+    "instance_type_mc": "t4g.small",
+    "key_name": "mcServer-kp",
+    "storage": {
+        "proxy_size_gb": 8,
+        "mc_size_gb": 20,
+        "volume_type": "gp3"
     },
-    {
-        "aws-servers-ids": {
-            "proxy-server-id": "i-03773ed538dbc7261",
-            "minecraft-server-id": "i-0bf4e1fed1bcbc6cb"
-        }
+    "resources": {
+        "vpc_id": null,
+        "public_subnet_id": null,
+        "private_subnet_id": null,
+        "internet_gateway_id": null,
+        "proxy_sg_id": null,
+        "mc_sg_id": null,
+        "iam_role_arn": null,
+        "proxy_instance_id": null,
+        "mc_instance_id": null,
+        "proxy_public_ip": null,
+        "mc_private_ip": null
     }
-]
+}

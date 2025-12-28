@@ -1,159 +1,69 @@
 #!/usr/bin/env bash
 
-# ===== CONFIG =====
-MC_USER="minecraft"
-MC_DIR="/opt/minecraft"
-MC_SERVICE_NAME="minecraft"
+# Minecraft Server Setup Selector
+# This script asks the user which version they want and runs the corresponding setup script.
 
-SERVER_TYPE=0
-
-VANILLA_MC_VERSION="1.21.11"
-VANILLA_MC_DIR="${MC_DIR}/vanilla"
-VANILLA_MC_INSTALLER_URL="https://piston-data.mojang.com/v1/objects/64bb6d763bed0a9f1d632ec347938594144943ed/server.jar"
-VANILLA_MC_INSTALLER_JAR="vanilla-mcServer-${VANILLA_MC_VERSION}-installer.jar"
-
-FORGE_MC_VERSION="1.20.1-47.4.10"
-FORGE_MC_DIR="${MC_DIR}/forge"
-FORGE_MC_INSTALLER_URL="https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.10/forge-1.20.1-47.4.10-installer.jar"
-FORGE_MC_INSTALLER_JAR="forge-mcServer-${FORGE_MC_VERSION}-installer.jar"
-
-SCREEN_NAME="minecraft"
-
-# ===== FUNCTIONS =====
 server_install_packages() {
+    if command -v java &> /dev/null; then
+        echo "✅ Dependencies already installed. Skipping package update."
+        sleep 1
+        return
+    fi
+
+    echo "📦 Installing system packages..."
+    sleep 1
     sudo yum update -y
     sudo yum install -y java-17-amazon-corretto-devel
     sudo yum install -y java-21-amazon-corretto-devel
     sudo yum install -y screen
     sudo yum install -y git
+    echo "✅ Packages installed!"
+    sleep 1
 }
+server_install_packages 
 
-select_server_type() {
-    echo "Select Server Type:"
-    echo "1) Vanilla"
-    echo "2) Forge"
-    read -p "Enter choice [1-2]: " choice
-    case $choice in
-        1) SERVER_TYPE=1 ;;
-        2) SERVER_TYPE=2 ;;
-        *) echo "Invalid choice"; exit 1 ;;
-    esac
-}
+echo "========================================="
+echo "   🚀 Minecraft Server Setup Wizard 🚀   "
+echo "========================================="
+echo "Select Server Type:"
+echo "1) Vanilla (Performance & Latest Features)"
+echo "2) Forge (Modding Support)"
+echo ""
+read -p "Enter choice [1-2]: " choice
 
-mc_server_environment() {
-    if [ ! -d "${MC_DIR}" ]; then
-        sudo mkdir -p "${MC_DIR}"
-        id -u "${MC_USER}" &>/dev/null || sudo useradd -m "${MC_USER}"
-        sudo chown -R "${MC_USER}:${MC_USER}" "${MC_DIR}"
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ "$choice" -eq 1 ]; then
+    echo "➡️  Launching Vanilla Setup..."
+    sleep 1
+    TARGET_SCRIPT="${SCRIPT_DIR}/main-mcServer-vanilla.sh"
+    
+    if [ -f "$TARGET_SCRIPT" ]; then
+        chmod +x "$TARGET_SCRIPT"
+        "$TARGET_SCRIPT"
+    else
+        echo "❌ Error: main-mcServer-vanilla.sh not found at: $TARGET_SCRIPT"
+        exit 1
     fi
 
-    sudo mkdir -p "${VANILLA_MC_DIR}" "${FORGE_MC_DIR}"
-    sudo chown -R "${MC_USER}:${MC_USER}" "${VANILLA_MC_DIR}" "${FORGE_MC_DIR}"
+elif [ "$choice" -eq 2 ]; then
+    echo "➡️  Launching Forge Setup..."
+    sleep 1
+    TARGET_SCRIPT="${SCRIPT_DIR}/main-mcServer-forge.sh"
 
-    if [ "$SERVER_TYPE" -eq 1 ]; then
-        cd ${VANILLA_MC_DIR}    
-        if [ ! -f "${VANILLA_MC_DIR}/${VANILLA_MC_INSTALLER_JAR}" ]; then
-            # Download installer
-            sudo -u "${MC_USER}" wget "${VANILLA_MC_INSTALLER_URL}" -O "${VANILLA_MC_DIR}/${VANILLA_MC_INSTALLER_JAR}"
-            
-            # Install server (Initial run to generate files)
-            sudo -u "${MC_USER}" java -Xmx1024M -Xms1024M -jar "${VANILLA_MC_DIR}/${VANILLA_MC_INSTALLER_JAR}" nogui
-            sleep 2
-            sudo -u "${MC_USER}" sed -i 's/eula=false/eula=true/' eula.txt
-
-
-            # Create start and stop scripts
-            sudo -u "${MC_USER}" bash -c "echo '-Xmx1024M -Xms1024M' > user_jvm_args.txt"
-            
-            # Start script
-            cat <<EOF | sudo -u "${MC_USER}" tee start > /dev/null
-#!/bin/bash
-java @user_jvm_args.txt -jar ${VANILLA_MC_DIR}/${VANILLA_MC_INSTALLER_JAR} nogui
-EOF
-            sudo chmod +x start
-
-            # Stop script
-            cat <<EOF | sudo -u "${MC_USER}" tee stop > /dev/null
-#!/bin/bash
-kill -9 \$(ps -ef | pgrep -f "java")
-EOF
-            sudo chmod +x stop
-            sleep 1
-            
-            # Create service with proper sudo permissions
-            sudo bash -c "cat > /etc/systemd/system/vanilla-minecraft.service <<EOF
-[Unit]
-Description=Vanilla Minecraft Server
-Wants=network-online.target
-[Service]
-User=minecraft
-WorkingDirectory=/opt/minecraft/vanilla
-ExecStart=/opt/minecraft/vanilla/start
-StandardInput=null
-[Install]
-WantedBy=multi-user.target
-EOF"
-            sudo systemctl daemon-reload
-            sudo systemctl enable vanilla-minecraft.service
-            sudo systemctl start vanilla-minecraft.service
-        fi
-
-    elif [ "$SERVER_TYPE" -eq 2 ]; then
-        cd ${FORGE_MC_DIR}
-        if [ ! -f "${FORGE_MC_DIR}/${FORGE_MC_INSTALLER_JAR}" ]; then
-            # Download installer
-            sudo -u "${MC_USER}" wget "${FORGE_MC_INSTALLER_URL}" -O "${FORGE_MC_DIR}/${FORGE_MC_INSTALLER_JAR}"
-
-            # Install server
-            sudo -u "${MC_USER}" java -Xmx1024M -Xms1024M -jar "${FORGE_MC_DIR}/${FORGE_MC_INSTALLER_JAR}" nogui --installServer
-            sleep 2
-            sudo -u "${MC_USER}" sed -i 's/eula=false/eula=true/' eula.txt  
-            
-            # Create start and stop scripts
-            sudo -u "${MC_USER}" bash -c "echo '-Xmx1024M -Xms1024M' > user_jvm_args.txt"
-            
-            # Start script
-            cat <<EOF | sudo -u "${MC_USER}" tee start > /dev/null
-#!/bin/bash
-java @user_jvm_args.txt @libraries/net/minecraftforge/forge/1.20.1-47.4.10/unix_args.txt "\$@"
-EOF
-            sudo chmod +x start
-
-            # Stop script
-            cat <<EOF | sudo -u "${MC_USER}" tee stop > /dev/null
-#!/bin/bash
-kill -9 \$(ps -ef | pgrep -f "java")
-EOF
-            sudo chmod +x stop
-            sleep 1
-            
-            # Create service with proper sudo permissions
-            sudo bash -c "cat > /etc/systemd/system/forge-minecraft.service <<EOF
-[Unit]
-Description=Forge Minecraft Server
-Wants=network-online.target
-[Service]
-User=minecraft
-WorkingDirectory=/opt/minecraft/forge
-ExecStart=/opt/minecraft/forge/start
-StandardInput=null
-[Install]
-WantedBy=multi-user.target
-EOF"
-            sudo systemctl daemon-reload
-            sudo systemctl enable forge-minecraft.service
-            sudo systemctl start forge-minecraft.service
-        fi
+    if [ -f "$TARGET_SCRIPT" ]; then
+        chmod +x "$TARGET_SCRIPT"
+        "$TARGET_SCRIPT"
+    else
+        echo "❌ Error: main-mcServer-forge.sh not found at: $TARGET_SCRIPT"
+        exit 1
     fi
-}
 
-
-main() {
-    server_install_packages
-    select_server_type
-    mc_server_environment
-}
-main
+else
+    echo "❌ Invalid choice. Exiting."
+    exit 1
+fi
 
 
 

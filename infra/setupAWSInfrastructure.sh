@@ -1,85 +1,179 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# Obatin ID
+# Configuration
+CONFIG_FILE="infra/awsConfig.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ Config file not found at $CONFIG_FILE"
+    exit 1
+fi
 
-## VPC ID
+# Helper function to read config
+read_config() {
+    jq -r "$1" "$CONFIG_FILE"
+}
 
-VPC_ID=$(aws ec2 describe-vpcs \
-    --filters "Name=tag:Name,Values=minecraftServer-vpc" \
-    --query "Vpcs[*].VpcId" \
-    --output text)
+# Helper function to update config
+update_config() {
+    local key="$1"
+    local value="$2"
+    # Use a temporary file to avoid corruption during write
+    tmp=$(mktemp)
+    jq --arg val "$value" ".resources.$key = \$val" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+}
 
-## Subnet ID
+# Check dependencies
+if ! command -v jq &> /dev/null; then
+    echo "❌ 'jq' is not installed. Please install it (e.g., brew install jq)."
+    exit 1
+fi
+if ! command -v aws &> /dev/null; then
+    echo "❌ 'aws' CLI is not installed."
+    exit 1
+fi
 
-SUBNET_PUBLIC1_ID=$(aws ec2 describe-subnets \
-    --filters "Name=tag:Name,Values=minecraftServer-subnet-public1-mx-central-1a" \
-    --query "Subnets[*].SubnetId" \
-    --output text)
+echo "========================================="
+echo "   ☁️  AWS Infrastructure Setup"
+echo "========================================="
 
-SUBNET_PRIVATE1_ID=$(aws ec2 describe-subnets \
-    --filters "Name=tag:Name,Values=minecraftServer-subnet-private1-mx-central-1a" \
-    --query "Subnets[*].SubnetId" \
-    --output text)
+# Load Vars
+PROJECT=$(read_config ".project")
+REGION=$(read_config ".region")
+AMI_ID=$(read_config ".ami_id")
+INSTANCE_TYPE_PROXY=$(read_config ".instance_type_proxy")
+INSTANCE_TYPE_MC=$(read_config ".instance_type_mc")
+KEY_NAME=$(read_config ".key_name")
+PROXY_STORAGE=$(read_config ".storage.proxy_size_gb")
+MC_STORAGE=$(read_config ".storage.mc_size_gb")
+VOL_TYPE=$(read_config ".storage.volume_type")
 
-## Route Table ID
+echo "📍 Region: $REGION"
+echo "🔑 Key Pair: $KEY_NAME"
+echo "📦 Storage: Proxy=${PROXY_STORAGE}GB, MC=${MC_STORAGE}GB ($VOL_TYPE)"
 
-ROUTE_TABLE_PUBLIC1_ID=$(aws ec2 describe-route-tables \
-    --filters "Name=tag:Name,Values=minecraftServer-rtb-public" \
-    --query "RouteTables[*].RouteTableId" \
-    --output text)
+# 1. VPC Setup
+echo "SETUP: Creating VPC..."
+VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --region "$REGION" --query 'Vpc.VpcId' --output text)
+aws ec2 create-tags --resources "$VPC_ID" --tags Key=Name,Value="${PROJECT}-vpc" --region "$REGION"
+aws ec2 modify-vpc-attribute --vpc-id "$VPC_ID" --enable-dns-hostnames "{\"Value\":true}" --region "$REGION"
+update_config "vpc_id" "$VPC_ID"
+echo "✅ VPC Created: $VPC_ID"
 
-## Security Group ID
+# Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway --region "$REGION" --query 'InternetGateway.InternetGatewayId' --output text)
+aws ec2 attach-internet-gateway --vpc-id "$VPC_ID" --internet-gateway-id "$IGW_ID" --region "$REGION"
+aws ec2 create-tags --resources "$IGW_ID" --tags Key=Name,Value="${PROJECT}-igw" --region "$REGION"
+update_config "internet_gateway_id" "$IGW_ID"
 
-SG_ID=$(aws ec2 describe-security-groups \
-    --filters "Name=tag:Name,Values=minecraftServer-sg" \
-    --query "SecurityGroups[*].GroupId" \
-    --output text)
+# Subnets
+echo "SETUP: Creating Subnets..."
+PUB_SUBNET_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.1.0/24 --availability-zone "${REGION}a" --region "$REGION" --query 'Subnet.SubnetId' --output text)
+aws ec2 create-tags --resources "$PUB_SUBNET_ID" --tags Key=Name,Value="${PROJECT}-public-subnet" --region "$REGION"
+update_config "public_subnet_id" "$PUB_SUBNET_ID"
 
-## Key Pair
+# Enable auto-assign public IP for public subnet
+aws ec2 modify-subnet-attribute --subnet-id "$PUB_SUBNET_ID" --map-public-ip-on-launch --region "$REGION"
 
-KEY_PAIR_ID=$(aws ec2 describe-key-pairs \
-    --filters "Name=key-name,Values=mcServer-kp" \
-    --query "KeyPairs[*].KeyPairId" \
-    --output text)
+PRI_SUBNET_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.2.0/24 --availability-zone "${REGION}a" --region "$REGION" --query 'Subnet.SubnetId' --output text)
+aws ec2 create-tags --resources "$PRI_SUBNET_ID" --tags Key=Name,Value="${PROJECT}-private-subnet" --region "$REGION"
+update_config "private_subnet_id" "$PRI_SUBNET_ID"
 
+# Route Table (Public)
+RT_ID=$(aws ec2 create-route-table --vpc-id "$VPC_ID" --region "$REGION" --query 'RouteTable.RouteTableId' --output text)
+aws ec2 create-routes --route-table-id "$RT_ID" --destination-cidr-block 0.0.0.0/0 --gateway-id "$IGW_ID" --region "$REGION" > /dev/null
+aws ec2 associate-route-table --route-table-id "$RT_ID" --subnet-id "$PUB_SUBNET_ID" --region "$REGION" > /dev/null
+aws ec2 create-tags --resources "$RT_ID" --tags Key=Name,Value="${PROJECT}-public-rt" --region "$REGION"
 
-# Create Infrastructure
+# 2. Security Groups
+echo "SETUP: Creating Security Groups..."
+# Proxy SG
+PROXY_SG_ID=$(aws ec2 create-security-group --group-name "${PROJECT}-proxy-sg" --description "Security group for Proxy" --vpc-id "$VPC_ID" --region "$REGION" --query 'GroupId' --output text)
+aws ec2 authorize-security-group-ingress --group-id "$PROXY_SG_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0 --region "$REGION"
+aws ec2 authorize-security-group-ingress --group-id "$PROXY_SG_ID" --protocol tcp --port 25565 --cidr 0.0.0.0/0 --region "$REGION"
+update_config "proxy_sg_id" "$PROXY_SG_ID"
 
-AMI_ID=$(aws ec2 describe-images \
-    --region mx-central-1 \
-    --owners amazon \
-    --filters "Name=name,Values=al2023-ami-*-arm64" "Name=state,Values=available" \
-    --query "sort_by(Images, &CreationDate)[-1].ImageId" \
-    --output text)
+# Minecraft SG
+MC_SG_ID=$(aws ec2 create-security-group --group-name "${PROJECT}-mc-sg" --description "Security group for MC Server" --vpc-id "$VPC_ID" --region "$REGION" --query 'GroupId' --output text)
+# Allow SSH and MC Only from Proxy SG
+aws ec2 authorize-security-group-ingress --group-id "$MC_SG_ID" --protocol tcp --port 22 --source-group "$PROXY_SG_ID" --region "$REGION"
+aws ec2 authorize-security-group-ingress --group-id "$MC_SG_ID" --protocol tcp --port 25565 --source-group "$PROXY_SG_ID" --region "$REGION"
+update_config "mc_sg_id" "$MC_SG_ID"
 
-## Launch EC2 Instances with AMI
+# 3. IAM Role
+echo "SETUP: Creating IAM Role..."
+ROLE_NAME="${PROJECT}-proxy-role"
+TRUST_POLICY='{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Service": "ec2.amazonaws.com" },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}'
+# Create Role if not exists
+aws iam create-role --role-name "$ROLE_NAME" --assume-role-policy-document "$TRUST_POLICY" > /dev/null 2>&1 || echo "   Role likely exists, continuing..."
+aws iam attach-role-policy --role-name "$ROLE_NAME" --policy-arn arn:aws:iam::aws:policy/AmazonEC2FullAccess
+# Wait for eventual consistency
+sleep 5
 
-### Proxy Server
+# Instance Profile
+PROFILE_NAME="${PROJECT}-proxy-profile"
+aws iam create-instance-profile --instance-profile-name "$PROFILE_NAME" > /dev/null 2>&1 || true
+aws iam add-role-to-instance-profile --instance-profile-name "$PROFILE_NAME" --role-name "$ROLE_NAME" > /dev/null 2>&1 || true
+update_config "iam_role_arn" "arn:aws:iam::account-id:role/$ROLE_NAME" # Store just name helps too
+sleep 10 # Wait for profile propagation
 
-aws ec2 run-instances \
-    --image-id $AMI_ID \
+# 4. Launch Instances
+echo "SETUP: Launching EC2 Instances..."
+
+# Launch Proxy
+PROXY_ID=$(aws ec2 run-instances \
+    --image-id "$AMI_ID" \
     --count 1 \
-    --instance-type t4g.small\
-    --key-name mcServer-kp \
-    --security-group-ids $SG_ID \
-    --subnet-id $SUBNET_PUBLIC1_ID \
-    --associate-public-ip-address \
-    --user-data file://user-data-proxy-server.sh
-
-EC2_PROXY_SERVER_ID=$(aws ec2 describe-instances \
-    --filters "Name=tag:Name,Values=minecraftServer-proxy-server" \
-    --query "Reservations[*].Instances[*].InstanceId" \
+    --instance-type "$INSTANCE_TYPE_PROXY" \
+    --key-name "$KEY_NAME" \
+    --subnet-id "$PUB_SUBNET_ID" \
+    --security-group-ids "$PROXY_SG_ID" \
+    --iam-instance-profile Name="$PROFILE_NAME" \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":$PROXY_STORAGE,\"VolumeType\":\"$VOL_TYPE\"}}]" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${PROJECT}-proxy}]" \
+    --region "$REGION" \
+    --query 'Instances[0].InstanceId' \
     --output text)
+update_config "proxy_instance_id" "$PROXY_ID"
+echo "✅ Proxy Launched: $PROXY_ID"
 
-### Minecraft Server
-
-aws ec2 run-instances \
-    --image-id $AMI_ID \
+# Launch MC Server
+MC_ID=$(aws ec2 run-instances \
+    --image-id "$AMI_ID" \
     --count 1 \
-    --instance-type t4g.large \
-    --key-name mcServer-kp \
-    --security-group-ids $SG_ID \
-    --subnet-id $SUBNET_PRIVATE1_ID \
-    --user-data file://user-data-minecraft-server.sh
+    --instance-type "$INSTANCE_TYPE_MC" \
+    --key-name "$KEY_NAME" \
+    --subnet-id "$PRI_SUBNET_ID" \
+    --security-group-ids "$MC_SG_ID" \
+    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":$MC_STORAGE,\"VolumeType\":\"$VOL_TYPE\"}}]" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${PROJECT}-mc-server}]" \
+    --region "$REGION" \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+update_config "mc_instance_id" "$MC_ID"
+echo "✅ MC Server Launched: $MC_ID"
 
-EC2_PROXY_SERVER_ID=$(aws ec2 describe-instances)
+echo "⏳ Waiting for instances to initialize..."
+aws ec2 wait instance-running --instance-ids "$PROXY_ID" "$MC_ID" --region "$REGION"
+
+# Get IPs
+PROXY_IP=$(aws ec2 describe-instances --instance-ids "$PROXY_ID" --region "$REGION" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+MC_IP=$(aws ec2 describe-instances --instance-ids "$MC_ID" --region "$REGION" --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+
+update_config "proxy_public_ip" "$PROXY_IP"
+update_config "mc_private_ip" "$MC_IP"
+
+echo "========================================="
+echo "   🚀 Infrastructure Created Successfully"
+echo "========================================="
+echo "Proxy Public IP: $PROXY_IP"
+echo "MC Private IP:   $MC_IP"
+echo ""
+echo "Configuration saved to $CONFIG_FILE"

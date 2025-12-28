@@ -4,27 +4,14 @@ This project provides a comprehensive, script-based automation suite to deploy a
 
 ## 🏗 Architecture Overview
 
+For a detailed view, see [docs/diagramArchitecture.md](docs/diagramArchitecture.md).
+
 The system follows a tiered architecture for security and scalability:
 
 - **VPC Layer:** A dedicated Virtual Private Cloud with Public and Private subnets.
 - **Proxy Server (Public Subnet):** A lightweight Node.js proxy that handles initial player connections and can interact with the AWS API to manage the Minecraft server state.
 - **Minecraft Server (Private Subnet):** The actual game server, isolated from the public internet, receiving traffic only through the proxy.
 
-```mermaid
-architecture-beta
-    group vpc(logos:aws-vpc)[Main VPC]
-    group public_subnet(cloud)[Public Subnet] in vpc
-    group private_subnet(cloud)[Private Subnet] in vpc
-
-    service proxy(logos:aws-ec2)[Proxy Server] in public_subnet
-    service mc_server(logos:aws-ec2)[Minecraft EC2] in private_subnet
-
-    service internet(internet)[Internet Gateway]
-    internet:B -- T:proxy
-    proxy:R -- L:mc_server
-```
-
----
 
 ## 🛠 Project Structure
 
@@ -59,22 +46,32 @@ SSH into your Proxy instance and run:
 ```
 
 ### 4. Setup the Minecraft Server
-SSH into your Minecraft instance. Run the main setup script and choose your server type:
+SSH into your Minecraft instance. Run the main setup script to start the **Multi-Instance Wizard**:
 ```bash
 ./scripts/setupMain-mcServer.sh
 ```
-- **Option 1:** Vanilla (High performance, latest versions).
-- **Option 2:** Forge (For modded gameplay).
+Follow the interactive prompts:
+1.  **Select Type:** Vanilla or Forge.
+2.  **Select Game Mode:** Survival, Creative, or Hardcore.
+3.  **Action Menu:**
+    *   **Create New:** Installs a fresh server instance (e.g., `01`, `02`).
+    *   **Reinstall:** Cleanly wipes an existing server and reinstalls it.
+    *   **Delete:** Permanently removes a server instance.
 
 ---
 
 ## ⚙️ Configuration details
 
 ### Minecraft Server Management
-The server is managed by **systemd**. You can control it using standard service commands:
-- **Start:** `sudo systemctl start vanilla-minecraft` (or `forge-minecraft`)
-- **Stop:** `sudo systemctl stop vanilla-minecraft`
-- **Status:** `sudo systemctl status vanilla-minecraft`
+Servers are managed by **systemd** with unique service names based on their ID and configuration:
+Format: `<ID>-<TYPE>-<VERSION>-<GAMEMODE>`
+Example: `01-vanilla-1.21.11-survival`
+
+**Commands:**
+- **Start:** `sudo systemctl start 01-vanilla-1.21.11-survival`
+- **Stop:** `sudo systemctl stop 01-vanilla-1.21.11-survival`
+- **Status:** `sudo systemctl status 01-vanilla-1.21.11-survival`
+- **Restart:** `sudo systemctl restart 01-vanilla-1.21.11-survival`
 
 ### Cost Optimization
 To save money, use the following AWS CLI commands to stop the instances when not in use:

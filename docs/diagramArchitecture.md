@@ -1,9 +1,13 @@
+# 🏗 Architecture Diagram
+
+The following Mermaid diagram illustrates the AWS infrastructure layout, including the VPC, Subnets, and Server placement.
+
 ```mermaid
 architecture-beta
     %% --- Definitions ---
     %% 1. The Main Container: The VPC
     %% We use the official AWS VPC icon for the group
-    group vpc(logos:aws-vpc)[Main VPC]
+    group vpc(logos:aws-vpc)[VPC]
 
     %% 2. The Subnets placed INSIDE the VPC group
     %% We use generic cloud icons for subnets as they are just containers
@@ -13,10 +17,15 @@ architecture-beta
     %% --- Content ---
     %% 3. The "Empty" Servers
     %% Mermaid needs nodes to render the groups. We add placeholder EC2s.
-    service pub_server_slot(logos:aws-ec2)[Empty Server Slot] in public_subnet
-    service priv_server_slot(logos:aws-ec2)[Empty Server Slot] in private_subnet
+    service pub_server_slot(logos:aws-ec2)[Proxy Server] in public_subnet
+    service priv_server_slot(logos:aws-ec2)[Minecraft Server] in private_subnet
 
     %% Optional: Show internet connectivity intent to the public subnet
     service internet(internet)[Internet Gateway]
-    internet:B -- T:pub_server_slot{group}
+    service iam_role(logos:aws-iam-role)[AWS IAM Role] in public_subnet
+
+
+    internet:B -- T:pub_server_slot
+    pub_server_slot:R -- L:priv_server_slot
+    iam_role:L -- R:pub_server_slot
 ```
