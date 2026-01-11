@@ -50,6 +50,17 @@ echo "📍 Region: $REGION"
 echo "🔑 Key Pair: $KEY_NAME"
 echo "📦 Storage: Proxy=${PROXY_STORAGE}GB, MC=${MC_STORAGE}GB ($VOL_TYPE)"
 
+# Check/Create Key Pair
+echo "SETUP: Checking Key Pair..."
+if ! aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$REGION" > /dev/null 2>&1; then
+    echo "   ⚠️  Key Pair '$KEY_NAME' not found. Creating it..."
+    aws ec2 create-key-pair --key-name "$KEY_NAME" --region "$REGION" --query 'KeyMaterial' --output text > "${KEY_NAME}.pem"
+    chmod 400 "${KEY_NAME}.pem"
+    echo "   ✅ Created Key Pair: ${KEY_NAME}.pem (Saved in current directory)"
+else
+    echo "   ✅ Key Pair '$KEY_NAME' exists."
+fi
+
 # 1. VPC Setup
 echo "SETUP: Creating VPC..."
 VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --region "$REGION" --query 'Vpc.VpcId' --output text)
@@ -79,7 +90,7 @@ update_config "private_subnet_id" "$PRI_SUBNET_ID"
 
 # Route Table (Public)
 RT_ID=$(aws ec2 create-route-table --vpc-id "$VPC_ID" --region "$REGION" --query 'RouteTable.RouteTableId' --output text)
-aws ec2 create-routes --route-table-id "$RT_ID" --destination-cidr-block 0.0.0.0/0 --gateway-id "$IGW_ID" --region "$REGION" > /dev/null
+aws ec2 create-route --route-table-id "$RT_ID" --destination-cidr-block 0.0.0.0/0 --gateway-id "$IGW_ID" --region "$REGION" > /dev/null
 aws ec2 associate-route-table --route-table-id "$RT_ID" --subnet-id "$PUB_SUBNET_ID" --region "$REGION" > /dev/null
 aws ec2 create-tags --resources "$RT_ID" --tags Key=Name,Value="${PROJECT}-public-rt" --region "$REGION"
 
@@ -163,8 +174,17 @@ echo "✅ MC Server Launched: $MC_ID"
 echo "⏳ Waiting for instances to initialize..."
 aws ec2 wait instance-running --instance-ids "$PROXY_ID" "$MC_ID" --region "$REGION"
 
+# Elastic IP Setup for Proxy
+echo "SETUP: Allocating and Associating Elastic IP to Proxy..."
+ALLOCATION_ID=$(aws ec2 allocate-address --domain vpc --region "$REGION" --query 'AllocationId' --output text)
+aws ec2 create-tags --resources "$ALLOCATION_ID" --tags Key=Name,Value="${PROJECT}-proxy-eip" --region "$REGION"
+aws ec2 associate-address --instance-id "$PROXY_ID" --allocation-id "$ALLOCATION_ID" --region "$REGION"
+ELASTIC_IP=$(aws ec2 describe-addresses --allocation-ids "$ALLOCATION_ID" --region "$REGION" --query 'Addresses[0].PublicIp' --output text)
+update_config "proxy_allocation_id" "$ALLOCATION_ID"
+echo "✅ Elastic IP Associated: $ELASTIC_IP"
+
 # Get IPs
-PROXY_IP=$(aws ec2 describe-instances --instance-ids "$PROXY_ID" --region "$REGION" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+PROXY_IP="$ELASTIC_IP"
 MC_IP=$(aws ec2 describe-instances --instance-ids "$MC_ID" --region "$REGION" --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
 
 update_config "proxy_public_ip" "$PROXY_IP"

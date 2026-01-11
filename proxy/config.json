@@ -1,0 +1,16 @@
+{
+    "project": "mc-server",
+    "region": "mx-central-1",
+    "proxy_port": 25599,
+    "backend": {
+        "fabric": {
+            "instanceId": "i-0d68e9694ff08e5a8",
+            "host": "10.0.2.161",
+            "port": 25565
+        }
+    },
+    "motd": {
+        "line1": "§5§lPurple Kingdom §8- §dOfficial §5Fabric §dServer",
+        "line2": "§7Join now for a premium experience!"
+    }
+}
