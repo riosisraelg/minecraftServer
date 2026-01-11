@@ -1,6 +1,6 @@
 # 🎮 Minecraft AWS Infrastructure & Server Setup
 
-This project provides a comprehensive, script-based automation suite to deploy a highly available and cost-efficient Minecraft server on AWS. It includes automated infrastructure provisioning, a proxy layer for traffic management, and support for both **Vanilla** and **Forge** server types.
+This project provides a comprehensive, script-based automation suite to deploy a highly available and cost-efficient Minecraft server on AWS. It includes automated infrastructure provisioning, a smart Node.js proxy for traffic management and cost optimization, and support for **Vanilla**, **Forge**, and **Fabric** server types.
 
 ## 🏗 Architecture Overview
 
@@ -9,85 +9,108 @@ For a detailed view, see [docs/diagramArchitecture.md](docs/diagramArchitecture.
 The system follows a tiered architecture for security and scalability:
 
 - **VPC Layer:** A dedicated Virtual Private Cloud with Public and Private subnets.
-- **Proxy Server (Public Subnet):** A lightweight Node.js proxy that handles initial player connections and can interact with the AWS API to manage the Minecraft server state.
-- **Minecraft Server (Private Subnet):** The actual game server, isolated from the public internet, receiving traffic only through the proxy.
-
+- **Smart Proxy (Public Subnet):** A custom Node.js application (`proxy/`) that:
+  - Provides a "Big Server" aesthetic with a **Purple/Pink Gradient MOTD**.
+  - Monitors the backend server status.
+  - **Automatically Starts** the backend EC2 instance when a player joins.
+  - Proxies traffic transparently to the backend once it is online.
+- **Minecraft Server (Private Subnet):** The actual game server (Fabric/Forge/Vanilla), isolated from the public internet, receiving traffic only through the proxy.
 
 ## 🛠 Project Structure
 
 | Directory/File | Description |
 | :--- | :--- |
-| `infra/` | AWS infrastructure scripts, configuration (`awsConfig.json`), and SSH keys. |
-| `scripts/` | Installation scripts for the Minecraft server and Proxy. |
+| `infra/` | AWS infrastructure setup (`setupAWSInfrastructure.sh`) and cleanup (`cleanupAWSInfrastructure.sh`) scripts. |
+| `proxy/` | Node.js application for the smart proxy server. |
+| `scripts/` | Installation scripts for the Minecraft server (Vanilla, Forge, Fabric). |
 | `docs/` | Architecture diagrams and documentation. |
 | `backups/` | Storage for server backups and snapshots. |
 | `README.MD` | Project documentation and quick start guide. |
-| `.gitignore` | Prevents sensitive keys and heavy game files from being committed. |
 
 ---
 
 ## 🚀 Quick Start Guide
 
 ### 1. Prerequisites
-- [AWS CLI](https://aws.amazon.com/cli/) installed and configured (`aws configure`).
-- SSH Key Pair named `mcServer-kp`.
+
+- [AWS CLI](https://aws.amazon.com/cli/) or [Antigravity](https://antigravity.dev/) configured with Administrator privileges.
+- `jq` and `git` installed locally.
 
 ### 2. Provision Infrastructure
-Run the infrastructure script to create the VPC and launch the EC2 instances.
+
+Run the infrastructure script. This will create the VPC, Security Groups, IAM Roles, and launch the EC2 instances. It will also generate a `mcServer-kp.pem` key if one doesn't exist.
+
 ```bash
 ./infra/setupAWSInfrastructure.sh
 ```
-*Note: This script will output the Public IPs of your instances.*
 
-### 3. Setup the Proxy Server
-SSH into your Proxy instance and run:
+### 3. Deploy the Smart Proxy
+
+Connect to the **Proxy** instance (Public IP provided by previous step) and install the proxy:
+
 ```bash
-./scripts/setupProxy-mcServer.sh
+# On the Proxy EC2 Instance
+cd /opt/proxy
+npm install
+npm start
 ```
+
+*Note: The proxy runs on port `25565` (or configured port) and listens for player connections.*
 
 ### 4. Setup the Minecraft Server
-SSH into your Minecraft instance. Run the main setup script to start the **Multi-Instance Wizard**:
+
+Connect to the **Minecraft** instance (via the Proxy as a bastion). Run the main setup wizard:
+
 ```bash
+# On the Minecraft EC2 Instance
 ./scripts/setupMain-mcServer.sh
 ```
-Follow the interactive prompts:
-1.  **Select Type:** Vanilla or Forge.
-2.  **Select Game Mode:** Survival, Creative, or Hardcore.
-3.  **Action Menu:**
-    *   **Create New:** Installs a fresh server instance (e.g., `01`, `02`).
-    *   **Reinstall:** Cleanly wipes an existing server and reinstalls it.
-    *   **Delete:** Permanently removes a server instance.
+
+Follow the interactive wizard:
+
+1. **Select Server Type:**
+    - `1) Vanilla`
+    - `2) Forge`
+    - `3) Fabric` (Recommended for performance/mods)
+2. **Select Game Mode:** Survival, Creative, or Hardcore.
+3. **Action Menu:** Create, Reinstall, or Delete server instances.
+
+---
+
+## ✨ Features
+
+### 🟣 "Purple Kingdom" Aesthetic
+
+The proxy server presents a premium "Official Server" look in the server list, customizable via `proxy/config.json`.
+
+### 💰 Cost Optimization (Auto-Wake)
+
+You don't need to keep the expensive backend server running 24/7.
+
+1. **Stop the backend** when no one is playing.
+2. The **Proxy** (t4g.nano) stays online for pennies a day.
+3. When a player tries to join, the Proxy says "Server is sleeping... Starting up!" and **automatically boots the backend**.
+4. After ~30 seconds, the player can join.
+
+### 🛡 Security
+
+- **Least Privilege IAM:** The Proxy EC2 role only has permissions to `Start`/`Stop` and `Describe` instances.
+- **Private Isolation:** The Game Server has no Public IP and cannot be reached directly from the internet.
 
 ---
 
 ## ⚙️ Configuration details
 
-### Minecraft Server Management
-Servers are managed by **systemd** with unique service names based on their ID and configuration:
-Format: `<ID>-<TYPE>-<VERSION>-<GAMEMODE>`
-Example: `01-vanilla-1.21.11-survival`
+### Minecraft Server Management (Systemd)
+
+Servers are managed by **systemd** with unique service names based on their ID/Type.
 
 **Commands:**
-- **Start:** `sudo systemctl start 01-vanilla-1.21.11-survival`
-- **Stop:** `sudo systemctl stop 01-vanilla-1.21.11-survival`
-- **Status:** `sudo systemctl status 01-vanilla-1.21.11-survival`
-- **Restart:** `sudo systemctl restart 01-vanilla-1.21.11-survival`
 
-### Cost Optimization
-To save money, use the following AWS CLI commands to stop the instances when not in use:
-```bash
-# Stop the Minecraft Instance
-aws ec2 stop-instances --instance-ids $(jq -r '.[1]."aws-servers-ids"."minecraft-server-id"' awsConfig.json)
-```
-
----
-
-## 🛡 Security Note
-- The Minecraft server resides in a **Private Subnet**.
-- Access is restricted via **Security Groups** to only allow traffic on port `25565` from the Proxy and port `22` for administration.
-- Always keep your `.pem` key files secure and never commit them to public repositories.
-
----
+- **Start:** `sudo systemctl start 01-fabric-1.20.1-survival`
+- **Stop:** `sudo systemctl stop 01-fabric-1.20.1-survival`
+- **Logs:** `journalctl -u 01-fabric-1.20.1-survival -f`
 
 ## 📜 License
+
 MIT License. Feel free to modify and adapt for your own server needs!
