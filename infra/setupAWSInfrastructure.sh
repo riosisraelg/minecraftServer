@@ -122,9 +122,29 @@ TRUST_POLICY='{
     }
   ]
 }'
+
+PROXY_POLICY='{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ec2:DescribeInstanceStatus",
+                "ec2:StartInstances",
+                "ec2:StopInstances"
+            ],
+            "Resource": "*"
+        }
+    ]
+}'
+
 # Create Role if not exists
 aws iam create-role --role-name "$ROLE_NAME" --assume-role-policy-document "$TRUST_POLICY" > /dev/null 2>&1 || echo "   Role likely exists, continuing..."
-aws iam attach-role-policy --role-name "$ROLE_NAME" --policy-arn arn:aws:iam::aws:policy/AmazonEC2FullAccess
+
+# Put Custom Policy (removes need for FullAccess)
+aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name "${PROJECT}-proxy-policy" --policy-document "$PROXY_POLICY"
+
 # Wait for eventual consistency
 sleep 5
 

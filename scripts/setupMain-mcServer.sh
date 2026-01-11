@@ -28,8 +28,9 @@ echo "========================================="
 echo "Select Server Type:"
 echo "1) Vanilla (Performance & Latest Features)"
 echo "2) Forge (Modding Support)"
+echo "3) Fabric (Lightweight Modding)"
 echo ""
-read -p "Enter choice [1-2]: " choice
+read -p "Enter choice [1-3]: " choice
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -57,6 +58,19 @@ elif [ "$choice" -eq 2 ]; then
         "$TARGET_SCRIPT"
     else
         echo "❌ Error: main-mcServer-forge.sh not found at: $TARGET_SCRIPT"
+        exit 1
+    fi
+
+elif [ "$choice" -eq 3 ]; then
+    echo "➡️  Launching Fabric Setup..."
+    sleep 1
+    TARGET_SCRIPT="${SCRIPT_DIR}/main-mcServer-fabric.sh"
+
+    if [ -f "$TARGET_SCRIPT" ]; then
+        chmod +x "$TARGET_SCRIPT"
+        "$TARGET_SCRIPT"
+    else
+        echo "❌ Error: main-mcServer-fabric.sh not found at: $TARGET_SCRIPT"
         exit 1
     fi
 
