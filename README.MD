@@ -97,6 +97,18 @@ You don't need to keep the expensive backend server running 24/7.
 - **Least Privilege IAM:** The Proxy EC2 role only has permissions to `Start`/`Stop` and `Describe` instances.
 - **Private Isolation:** The Game Server has no Public IP and cannot be reached directly from the internet.
 
+### 🔗 Proxy Version Compatibility
+
+The Smart Proxy is configured to handle the server list ping and initial handshake. While it acts as a transparent pipe for gameplay, the initial handshake version affects the "Status" display in the server list.
+
+| Server Type | Installed Version | Proxy Compatible Protocol |
+| :--- | :--- | :--- |
+| **Vanilla** | `1.21.11` | Works with 1.21.x Clients |
+| **Fabric** | `1.20.1` | Optimized for 1.20.1 (Protocol 763) |
+| **Forge** | `1.20.1` | Optimized for 1.20.1 (Protocol 763) |
+
+*Note: You can update the target protocol version in `proxy/src/index.js` or `proxy/config.json` if you upgrade your backend.*
+
 ---
 
 ## ⚙️ Configuration details

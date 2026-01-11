@@ -12,17 +12,17 @@
     "volume_type": "gp3"
   },
   "resources": {
-    "vpc_id": "",
-    "public_subnet_id": "",
-    "private_subnet_id": "",
-    "internet_gateway_id": "",
-    "proxy_sg_id": "",
-    "mc_sg_id": "",
-    "iam_role_arn": "",
-    "proxy_instance_id": "",
-    "mc_instance_id": "",
-    "proxy_public_ip": "",
-    "mc_private_ip": "",
-    "proxy_allocation_id": ""
+    "vpc_id": "vpc-0fadd6d376fb874c1",
+    "public_subnet_id": "subnet-0653dcb4d1eb8402b",
+    "private_subnet_id": "subnet-02e41aad785bca4c3",
+    "internet_gateway_id": "igw-004795ccc921117b3",
+    "proxy_sg_id": "sg-0657a883b89ce45c5",
+    "mc_sg_id": "sg-03a4590eb6bee0086",
+    "iam_role_arn": "arn:aws:iam::account-id:role/mc-server-proxy-role",
+    "proxy_instance_id": "i-0cb2915999f5cfd45",
+    "mc_instance_id": "i-0625ffbec6f25efdf",
+    "proxy_public_ip": "78.13.84.243",
+    "mc_private_ip": "10.0.2.182",
+    "proxy_allocation_id": "eipalloc-01c47d3bf84b5482d"
   }
 }
