@@ -192,4 +192,45 @@ const server = net.createServer((client) => {
     client.on('data', onData);
 });
 
-server.listen(PROXY_PORT);
+server.listen(PROXY_PORT, '0.0.0.0', () => {
+    console.log(`✓ Proxy successfully started on port ${PROXY_PORT}`);
+});
+
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ ERROR: Port ${PROXY_PORT} is already in use!`);
+        console.error('To fix this, run one of these commands:');
+        console.error(`  1. Kill the process: sudo kill -9 $(sudo lsof -t -i:${PROXY_PORT})`);
+        console.error('  2. Use the management script: ./manage-proxy.sh cleanup');
+        console.error('  3. Restart with PM2: pm2 restart minecraft-proxy\n');
+        process.exit(1);
+    } else {
+        console.error('Server error:', err);
+        process.exit(1);
+    }
+});
+
+// Graceful shutdown
+const shutdown = (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    server.close(() => {
+        console.log('✓ Server closed');
+        process.exit(0);
+    });
+    
+    // Force shutdown after 5 seconds
+    setTimeout(() => {
+        console.error('Forced shutdown after timeout');
+        process.exit(1);
+    }, 5000);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    shutdown('UNCAUGHT_EXCEPTION');
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});

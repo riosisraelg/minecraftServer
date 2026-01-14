@@ -46,16 +46,36 @@ Run the infrastructure script. This will create the VPC, Security Groups, IAM Ro
 
 ### 3. Deploy the Smart Proxy
 
-Connect to the **Proxy** instance (Public IP provided by previous step) and install the proxy:
+Connect to the **Proxy** instance (Public IP provided by previous step) and deploy the proxy:
 
 ```bash
 # On the Proxy EC2 Instance
-cd /opt/proxy
-npm install
-npm start
+cd /home/ec2-user/minecraftServer
+git clone https://github.com/riosisraelg/minecraftServer.git
+cd minecraftServer/proxy
+
+# Run automated deployment
+./deploy.sh
 ```
 
-*Note: The proxy runs on port `25565` (or configured port) and listens for player connections.*
+**Alternatively**, use the management script for manual control:
+
+```bash
+cd /home/ec2-user/minecraftServer/proxy
+npm install
+./manage-proxy.sh start
+```
+
+**Common Issues:**
+
+If you get `EADDRINUSE` error (port already in use):
+```bash
+./manage-proxy.sh cleanup
+./manage-proxy.sh start
+```
+
+*Note: The proxy runs on port `25599` by default. See `proxy/README.md` for detailed configuration.*
+
 
 ### 4. Setup the Minecraft Server
 
