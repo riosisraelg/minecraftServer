@@ -119,6 +119,7 @@ echo "SETUP: Creating Security Groups..."
 PROXY_SG_ID=$(aws ec2 create-security-group --group-name "${PROJECT}-proxy-sg" --description "Security group for Proxy" --vpc-id "$VPC_ID" --region "$REGION" --query 'GroupId' --output text)
 aws ec2 authorize-security-group-ingress --group-id "$PROXY_SG_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0 --region "$REGION"
 aws ec2 authorize-security-group-ingress --group-id "$PROXY_SG_ID" --protocol tcp --port 25565 --cidr 0.0.0.0/0 --region "$REGION"
+aws ec2 authorize-security-group-ingress --group-id "$PROXY_SG_ID" --protocol tcp --port 25599 --cidr 0.0.0.0/0 --region "$REGION"
 update_config "proxy_sg_id" "$PROXY_SG_ID"
 
 # Minecraft SG

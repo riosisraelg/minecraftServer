@@ -13,15 +13,15 @@ const proxy = mc.createServer({
     'online-mode': false, // We don't authenticate here, we pass-through (or backend does it)
     host: '0.0.0.0',
     port: PROXY_PORT,
-    version: '1.20.1', // Target version? Or flexible? false means auto-detect for ping
+    version: false, // Auto-detect version to handle handshake correctly
     motd: config.motd.line1 + "\n" + config.motd.line2,
     maxPlayers: 100,
     beforePing: (response, client, callback) => {
         console.log(`[Ping] Request from ${client.socket.remoteAddress}`);
         // Custom Purple MOTD Logic
         response.version = {
-            name: '§5Fabric 1.20.1',
-            protocol: 763
+            name: '§5Fabric 1.21.1',
+            protocol: 767
         };
         response.description = {
             text: config.motd.line1 + "\n" + config.motd.line2
@@ -57,7 +57,12 @@ setInterval(async () => {
 getServerStatus(BACKEND.instanceId).then(s => cachedStatus = s);
 
 proxy.on('login', async (client) => {
-    console.log(`User ${client.username} connecting...`);
+    console.log(`User ${client.username} connecting with protocol version: ${client.protocolVersion}...`);
+
+    if (client.protocolVersion !== 767) { // 767 is 1.21.1
+        client.end(`§cWrong Version! Please use Minecraft 1.21.1.\n§7Your protocol version: ${client.protocolVersion}`);
+        return;
+    }
 
     if (cachedStatus !== 'running') {
         const status = await getServerStatus(BACKEND.instanceId);
@@ -82,7 +87,7 @@ proxy.on('login', async (client) => {
         host: BACKEND.host,
         port: BACKEND.port,
         username: client.username,
-        version: '1.20.1', // Must match
+        version: '1.21.1', // Must match
         keepAlive: false,
         auth: 'offline' // Backend must be offline mode for this simple proxy
     });

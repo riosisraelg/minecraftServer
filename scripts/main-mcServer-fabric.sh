@@ -4,7 +4,7 @@
 MC_USER="minecraft"
 MC_DIR="/opt/minecraft"
 MC_TYPE="fabric"
-FABRIC_MC_VERSION="1.20.1" # Matching proxy config
+FABRIC_MC_VERSION="1.21.1" # Matching proxy config
 FABRIC_LOADER_VERSION="0.16.9"
 FABRIC_INSTALLER_VERSION="1.0.1"
 FABRIC_INSTALLER_URL="https://maven.fabricmc.net/net/fabricmc/fabric-installer/${FABRIC_INSTALLER_VERSION}/fabric-installer-${FABRIC_INSTALLER_VERSION}.jar"
