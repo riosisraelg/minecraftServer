@@ -99,6 +99,11 @@ proxy.on('login', async (client) => {
         // Pipe packets
         // Client -> Backend
         client.on('packet', (data, meta) => {
+            if (meta.name === 'keep_alive') {
+                // console.log("C->S KeepAlive", data); // Uncomment for spam
+                backendClient.write(meta.name, data);
+                return;
+            }
             if (meta.state === 'play' && backendClient.state === 'play') {
                 backendClient.write(meta.name, data);
             }
@@ -106,6 +111,14 @@ proxy.on('login', async (client) => {
 
         // Backend -> Client
         backendClient.on('packet', (data, meta) => {
+            if (meta.name === 'keep_alive') {
+                // console.log("S->C KeepAlive", data); // Uncomment for spam
+                client.write(meta.name, data);
+                return;
+            }
+            if (meta.name === 'disconnect') {
+                console.log("Backend Sent Disconnect:", data);
+            }
             if (meta.state === 'play' && client.state === 'play') {
                 client.write(meta.name, data);
             }
