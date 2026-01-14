@@ -31,6 +31,8 @@ VPC_ID=$(read_config ".resources.vpc_id")
 PUB_SUBNET_ID=$(read_config ".resources.public_subnet_id")
 PRI_SUBNET_ID=$(read_config ".resources.private_subnet_id")
 IGW_ID=$(read_config ".resources.internet_gateway_id")
+NAT_GW_ID=$(read_config ".resources.nat_gateway_id")
+NAT_EIP_ID=$(read_config ".resources.nat_eip_id")
 PROXY_SG_ID=$(read_config ".resources.proxy_sg_id")
 MC_SG_ID=$(read_config ".resources.mc_sg_id")
 ALLOCATION_ID=$(read_config ".resources.proxy_allocation_id")
@@ -137,6 +139,36 @@ if [ "$RT_ID" != "None" ] && [ "$RT_ID" != "" ]; then
     done
     echo "   Deleting Route Table ($RT_ID)..."
     aws ec2 delete-route-table --route-table-id "$RT_ID" --region "$REGION" > /dev/null 2>&1
+fi
+
+# Find Private Route Table
+PRI_RT_ID=$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=${PROJECT}-private-rt" --region "$REGION" --query "RouteTables[0].RouteTableId" --output text)
+if [ "$PRI_RT_ID" != "None" ] && [ "$PRI_RT_ID" != "" ]; then
+    echo "   Disassociating Private Route Table ($PRI_RT_ID)..."
+    ASSOC_IDS=$(aws ec2 describe-route-tables --route-table-ids "$PRI_RT_ID" --region "$REGION" --query "RouteTables[].Associations[].RouteTableAssociationId" --output text)
+    for assoc in $ASSOC_IDS; do
+        if [ "$assoc" != "None" ]; then
+           aws ec2 disassociate-route-table --association-id "$assoc" --region "$REGION" > /dev/null 2>&1
+        fi
+    done
+    echo "   Deleting Private Route Table ($PRI_RT_ID)..."
+    aws ec2 delete-route-table --route-table-id "$PRI_RT_ID" --region "$REGION" > /dev/null 2>&1
+fi
+
+# 5.5 NAT Gateway (Must be deleted before Elastic IP release and before VPC delete)
+if [ "$NAT_GW_ID" != "" ] && [ "$NAT_GW_ID" != "null" ]; then
+    echo "CLEANUP: Deleting NAT Gateway ($NAT_GW_ID)..."
+    aws ec2 delete-nat-gateway --nat-gateway-id "$NAT_GW_ID" --region "$REGION" > /dev/null 2>&1
+    echo "   ⏳ Waiting for NAT Gateway to delete (this takes a minute)..."
+    aws ec2 wait nat-gateway-deleted --nat-gateway-ids "$NAT_GW_ID" --region "$REGION"
+    update_config "nat_gateway_id" ""
+fi
+
+# Release NAT Elastic IP
+if [ "$NAT_EIP_ID" != "" ] && [ "$NAT_EIP_ID" != "null" ]; then
+    echo "CLEANUP: Releasing NAT Elastic IP ($NAT_EIP_ID)..."
+    aws ec2 release-address --allocation-id "$NAT_EIP_ID" --region "$REGION" > /dev/null 2>&1 || echo "   ⚠️  Could not release NAT IP"
+    update_config "nat_eip_id" ""
 fi
 
 if [ "$PUB_SUBNET_ID" != "" ] && [ "$PUB_SUBNET_ID" != "null" ]; then

@@ -94,6 +94,25 @@ aws ec2 create-route --route-table-id "$RT_ID" --destination-cidr-block 0.0.0.0/
 aws ec2 associate-route-table --route-table-id "$RT_ID" --subnet-id "$PUB_SUBNET_ID" --region "$REGION" > /dev/null
 aws ec2 create-tags --resources "$RT_ID" --tags Key=Name,Value="${PROJECT}-public-rt" --region "$REGION"
 
+# NAT Gateway (For Private Subnet Internet Access)
+echo "SETUP: Creating NAT Gateway..."
+NAT_EIP_ID=$(aws ec2 allocate-address --domain vpc --region "$REGION" --query 'AllocationId' --output text)
+aws ec2 create-tags --resources "$NAT_EIP_ID" --tags Key=Name,Value="${PROJECT}-nat-eip" --region "$REGION"
+update_config "nat_eip_id" "$NAT_EIP_ID"
+
+NAT_GW_ID=$(aws ec2 create-nat-gateway --subnet-id "$PUB_SUBNET_ID" --allocation-id "$NAT_EIP_ID" --region "$REGION" --query 'NatGateway.NatGatewayId' --output text)
+aws ec2 create-tags --resources "$NAT_GW_ID" --tags Key=Name,Value="${PROJECT}-nat-gw" --region "$REGION"
+update_config "nat_gateway_id" "$NAT_GW_ID"
+
+echo "⏳ Waiting for NAT Gateway to be available (this takes a minute)..."
+aws ec2 wait nat-gateway-available --nat-gateway-ids "$NAT_GW_ID" --region "$REGION"
+
+# Route Table (Private)
+PRI_RT_ID=$(aws ec2 create-route-table --vpc-id "$VPC_ID" --region "$REGION" --query 'RouteTable.RouteTableId' --output text)
+aws ec2 create-route --route-table-id "$PRI_RT_ID" --destination-cidr-block 0.0.0.0/0 --nat-gateway-id "$NAT_GW_ID" --region "$REGION" > /dev/null
+aws ec2 associate-route-table --route-table-id "$PRI_RT_ID" --subnet-id "$PRI_SUBNET_ID" --region "$REGION" > /dev/null
+aws ec2 create-tags --resources "$PRI_RT_ID" --tags Key=Name,Value="${PROJECT}-private-rt" --region "$REGION"
+
 # 2. Security Groups
 echo "SETUP: Creating Security Groups..."
 # Proxy SG

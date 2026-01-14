@@ -7,6 +7,11 @@ async function getServerStatus(instanceId) {
     try {
         const command = new DescribeInstancesCommand({ InstanceIds: [instanceId] });
         const data = await client.send(command);
+        
+        if (!data.Reservations || data.Reservations.length === 0 || !data.Reservations[0].Instances || data.Reservations[0].Instances.length === 0) {
+            return "notFound";
+        }
+
         const state = data.Reservations[0].Instances[0].State.Name;
         return state;
     } catch (err) {

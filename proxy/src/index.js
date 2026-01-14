@@ -17,6 +17,7 @@ const proxy = mc.createServer({
     motd: config.motd.line1 + "\n" + config.motd.line2,
     maxPlayers: 100,
     beforePing: (response, client, callback) => {
+        console.log(`[Ping] Request from ${client.socket.remoteAddress}`);
         // Custom Purple MOTD Logic
         response.version = {
             name: '§5Fabric 1.20.1',
@@ -47,7 +48,9 @@ let cachedStatus = 'unknown';
 
 // Polling AWS status
 setInterval(async () => {
-    cachedStatus = await getServerStatus(BACKEND.instanceId);
+    try {
+        cachedStatus = await getServerStatus(BACKEND.instanceId);
+    } catch(e) { console.error("Polling error:", e); }
 }, 10000); // Check every 10s
 
 // Initial check
@@ -120,4 +123,5 @@ proxy.on('login', async (client) => {
 
 });
 
-console.log(`Proxy listening on 127.0.0.1:${PROXY_PORT}`);
+console.log(`Proxy listening on 0.0.0.0:${PROXY_PORT}`);
+console.log(`To connect, use: localhost:${PROXY_PORT}`);
