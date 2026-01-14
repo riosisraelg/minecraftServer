@@ -209,6 +209,7 @@ mc_server_environment() {
         sleep 2
         
         sudo -u "${MC_USER}" sed -i 's/eula=false/eula=true/' eula.txt
+        sudo -u "${MC_USER}" bash -c "echo 'online-mode=false' >> server.properties"
         if [[ $? -eq 0 ]] && grep -q "eula=true" eula.txt; then
             echo "📜 EULA accepted"
         else
