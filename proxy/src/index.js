@@ -11,6 +11,7 @@ const BACKEND = config.backend.fabric;
 
 const proxy = mc.createServer({
     'online-mode': false, // We don't authenticate here, we pass-through (or backend does it)
+    keepAlive: false, // Disable auto keep-alive so packets are forwarded to backend
     host: '0.0.0.0',
     port: PROXY_PORT,
     version: false, // Auto-detect version to handle handshake correctly
