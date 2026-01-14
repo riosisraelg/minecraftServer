@@ -2,8 +2,11 @@ const net = require('net');
 const config = require('../config.json');
 const { getServerStatus, startServer } = require('./aws');
 
-const PROXY_PORT = config.proxy_port || 25565;
+const PROXY_PORT = config.proxy_port || 25599;
 const BACKEND = config.backend.fabric;
+
+console.log("Loaded Config:", JSON.stringify(config, null, 2));
+console.log(`Using Proxy Port: ${PROXY_PORT}`);
 
 // --- Helper: Simple VarInt Reader for sniffing ---
 function readVarInt(buffer, offset = 0) {
