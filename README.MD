@@ -11,21 +11,34 @@ The system follows a tiered architecture for security and scalability:
 - **VPC Layer:** A dedicated Virtual Private Cloud with Public and Private subnets.
 - **Smart Proxy (Public Subnet):** A custom Node.js application (`proxy/`) that:
   - Provides a "Big Server" aesthetic with a **Purple/Pink Gradient MOTD**.
-  - Monitors the backend server status.
+  - Monitors the backend server status via AWS API.
   - **Automatically Starts** the backend EC2 instance when a player joins.
   - Proxies traffic transparently to the backend once it is online.
 - **Minecraft Server (Private Subnet):** The actual game server (Fabric/Forge/Vanilla), isolated from the public internet, receiving traffic only through the proxy.
 
 ## 🛠 Project Structure
 
-| Directory/File | Description |
-| :--- | :--- |
-| `infra/` | AWS infrastructure setup (`setupAWSInfrastructure.sh`) and cleanup (`cleanupAWSInfrastructure.sh`) scripts. |
-| `proxy/` | Node.js application for the smart proxy server. |
-| `scripts/` | Installation scripts for the Minecraft server (Vanilla, Forge, Fabric). |
-| `docs/` | Architecture diagrams and documentation. |
-| `backups/` | Storage for server backups and snapshots. |
-| `README.MD` | Project documentation and quick start guide. |
+```
+minecraftServer/
+├── infra/                  # AWS infrastructure
+│   ├── lib/
+│   │   └── aws-common.sh   # Shared functions
+│   ├── awsConfig.json      # Configuration
+│   ├── setupAWSInfrastructure.sh
+│   └── cleanupAWSInfrastructure.sh
+├── proxy/                  # Smart proxy server
+│   ├── src/
+│   │   ├── index.js        # Main proxy
+│   │   ├── aws.js          # AWS EC2 controller
+│   │   └── utils/          # Protocol utilities
+│   ├── config.json         # Proxy configuration
+│   └── package.json
+├── scripts/                # Server installation
+│   ├── main-mcServer.sh    # Unified installer (Fabric/Forge/Vanilla)
+│   └── setupMain-mcServer.sh  # Entry point wizard
+├── docs/                   # Documentation
+└── backups/                # Server backups
+```
 
 ---
 
@@ -33,67 +46,48 @@ The system follows a tiered architecture for security and scalability:
 
 ### 1. Prerequisites
 
-- [AWS CLI](https://aws.amazon.com/cli/) or [Antigravity](https://antigravity.dev/) configured with Administrator privileges.
+- [AWS CLI](https://aws.amazon.com/cli/) configured with Administrator privileges.
 - `jq` and `git` installed locally.
 
 ### 2. Provision Infrastructure
-
-Run the infrastructure script. This will create the VPC, Security Groups, IAM Roles, and launch the EC2 instances. It will also generate a `mcServer-kp.pem` key if one doesn't exist.
 
 ```bash
 ./infra/setupAWSInfrastructure.sh
 ```
 
+This creates VPC, Security Groups, IAM Roles, and launches EC2 instances.
+
 ### 3. Deploy the Smart Proxy
 
-Connect to the **Proxy** instance (Public IP provided by previous step) and deploy the proxy:
+SSH to the **Proxy** instance and run:
 
 ```bash
-# On the Proxy EC2 Instance
-cd /home/ec2-user/minecraftServer
+cd /home/ec2-user
 git clone https://github.com/riosisraelg/minecraftServer.git
 cd minecraftServer/proxy
-
-# Run automated deployment
-./deploy.sh
-```
-
-**Alternatively**, use the management script for manual control:
-
-```bash
-cd /home/ec2-user/minecraftServer/proxy
 npm install
-./manage-proxy.sh start
+npm start
 ```
 
-**Common Issues:**
-
-If you get `EADDRINUSE` error (port already in use):
+Or use PM2 for production:
 ```bash
-./manage-proxy.sh cleanup
-./manage-proxy.sh start
+npm install -g pm2
+pm2 start src/index.js --name minecraft-proxy
+pm2 save
 ```
-
-*Note: The proxy runs on port `25599` by default. See `proxy/README.md` for detailed configuration.*
-
 
 ### 4. Setup the Minecraft Server
 
-Connect to the **Minecraft** instance (via the Proxy as a bastion). Run the main setup wizard:
+SSH to the **Minecraft** instance (via Proxy as bastion) and run:
 
 ```bash
-# On the Minecraft EC2 Instance
 ./scripts/setupMain-mcServer.sh
 ```
 
-Follow the interactive wizard:
-
-1. **Select Server Type:**
-    - `1) Vanilla`
-    - `2) Forge`
-    - `3) Fabric` (Recommended for performance/mods)
-2. **Select Game Mode:** Survival, Creative, or Hardcore.
-3. **Action Menu:** Create, Reinstall, or Delete server instances.
+The wizard will ask you to:
+1. **Select Server Type:** Fabric, Forge, or Vanilla
+2. **Select Game Mode:** Survival, Creative, or Hardcore
+3. **Configure RAM:** Default 2GB max, 1GB min
 
 ---
 
@@ -101,47 +95,53 @@ Follow the interactive wizard:
 
 ### 🟣 "Purple Kingdom" Aesthetic
 
-The proxy server presents a premium "Official Server" look in the server list, customizable via `proxy/config.json`.
+Custom MOTD in the server list, configurable in `proxy/config.json`.
 
 ### 💰 Cost Optimization (Auto-Wake)
 
-You don't need to keep the expensive backend server running 24/7.
-
-1. **Stop the backend** when no one is playing.
-2. The **Proxy** (t4g.nano) stays online for pennies a day.
-3. When a player tries to join, the Proxy says "Server is sleeping... Starting up!" and **automatically boots the backend**.
-4. After ~30 seconds, the player can join.
+1. Stop the backend when not playing.
+2. Proxy (t4g.nano) stays online for ~$3/month.
+3. Player joins → Proxy auto-starts backend → Player waits 30-60s → Plays!
 
 ### 🛡 Security
 
-- **Least Privilege IAM:** The Proxy EC2 role only has permissions to `Start`/`Stop` and `Describe` instances.
-- **Private Isolation:** The Game Server has no Public IP and cannot be reached directly from the internet.
-
-### 🔗 Proxy Version Compatibility
-
-The Smart Proxy is configured to handle the server list ping and initial handshake. While it acts as a transparent pipe for gameplay, the initial handshake version affects the "Status" display in the server list.
-
-| Server Type | Installed Version | Proxy Compatible Protocol |
-| :--- | :--- | :--- |
-| **Vanilla** | `1.21.11` | Works with 1.21.x Clients |
-| **Fabric** | `1.20.1` | Optimized for 1.20.1 (Protocol 763) |
-| **Forge** | `1.20.1` | Optimized for 1.20.1 (Protocol 763) |
-
-*Note: You can update the target protocol version in `proxy/src/index.js` or `proxy/config.json` if you upgrade your backend.*
+- **Least Privilege IAM:** Proxy only has `Start`/`Stop`/`Describe` permissions.
+- **Private Isolation:** Game server has no public IP.
 
 ---
 
-## ⚙️ Configuration details
+## ⚙️ Configuration
 
-### Minecraft Server Management (Systemd)
+### Proxy (`proxy/config.json`)
 
-Servers are managed by **systemd** with unique service names based on their ID/Type.
+```json
+{
+  "region": "us-east-1",
+  "proxy_port": 25599,
+  "backend": {
+    "fabric": {
+      "instanceId": "i-xxxxx",
+      "host": "10.0.2.xxx",
+      "port": 25565
+    }
+  }
+}
+```
 
-**Commands:**
+### Server Management (Systemd)
 
-- **Start:** `sudo systemctl start 01-fabric-1.20.1-survival`
-- **Stop:** `sudo systemctl stop 01-fabric-1.20.1-survival`
-- **Logs:** `journalctl -u 01-fabric-1.20.1-survival -f`
+```bash
+# Start server
+sudo systemctl start 01-fabric-1.21.1-survival
+
+# Stop server
+sudo systemctl stop 01-fabric-1.21.1-survival
+
+# View logs
+journalctl -u 01-fabric-1.21.1-survival -f
+```
+
+---
 
 ## 📜 License
 
