@@ -155,7 +155,9 @@ proxy/
 ├── src/
 │   ├── index.js              # Main proxy server
 │   ├── aws.js                # AWS EC2 integration
-│   └── index_packet_proxy.js # Alternative packet proxy
+│   └── utils/                # Protocol utilities
+│       ├── minecraft-protocol.js
+│       └── status-cache.js
 ├── config.json               # Configuration file
 ├── package.json              # Dependencies
 ├── ecosystem.config.js       # PM2 configuration
