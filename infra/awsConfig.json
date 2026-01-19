@@ -12,19 +12,19 @@
     "volume_type": "gp3"
   },
   "resources": {
-    "vpc_id": "",
-    "public_subnet_id": "",
-    "private_subnet_id": "",
-    "internet_gateway_id": "",
-    "proxy_sg_id": "",
-    "mc_sg_id": "",
-    "iam_role_arn": "",
-    "proxy_instance_id": "",
-    "mc_instance_id": "",
-    "proxy_public_ip": "",
-    "mc_private_ip": "",
-    "proxy_allocation_id": "",
-    "nat_eip_id": "",
-    "nat_gateway_id": ""
+    "vpc_id": "vpc-04cbd810712b4f9a9",
+    "public_subnet_id": "subnet-013679ba6b40310a5",
+    "private_subnet_id": "subnet-055c4a2d8dbfd473a",
+    "internet_gateway_id": "igw-0e466bce05ebabc2c",
+    "proxy_sg_id": "sg-06a00242cfe8cd89c",
+    "mc_sg_id": "sg-0920fb21f2f62a512",
+    "iam_role_arn": "arn:aws:iam::account-id:role/mc-server-proxy-role",
+    "proxy_instance_id": "i-0933deed93e352fb0",
+    "mc_instance_id": "i-032fdcd9e5aafc6d7",
+    "proxy_public_ip": "78.13.191.86",
+    "mc_private_ip": "10.0.2.4",
+    "proxy_allocation_id": "eipalloc-008274ba1638e0a44",
+    "nat_eip_id": "eipalloc-073a3374892ed25f7",
+    "nat_gateway_id": "nat-05d0f8cc60af807e6"
   }
 }
