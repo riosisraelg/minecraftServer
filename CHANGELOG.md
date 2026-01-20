@@ -1,6 +1,31 @@
-# � Changelog
+# 📋 Changelog
 
 All notable changes to the Minecraft AWS Infrastructure project.
+
+---
+
+## [2.2.0] - 2026-01-19
+
+### 🌸 CherryFrost MC Branding
+
+#### New Assets
+- Added `assets/branding/` directory with server branding materials
+- `server-icon.png` - 64x64 server icon for Minecraft server list
+- `cherryfrost-banner-night.png` - Night theme banner
+- `cherryfrost-banner-sunset.png` - Sunset theme banner
+
+#### Proxy Updates
+- **Server Icon Support**: Proxy now sends favicon in status response
+- Updated MOTD with CherryFrost MC color scheme
+- Added `fs` and `path` imports for icon loading
+
+#### Documentation
+- Added `docs/PROXY-MONITORING.md` - Complete monitoring system documentation with Mermaid diagrams
+- Updated `README.MD` with CherryFrost MC branding
+- Updated `docs/diagramArchitecture.md` with new service names
+
+#### Scripts
+- Updated Fabric loader to v0.18.4 and installer to v1.1.1
 
 ---
 

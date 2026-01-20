@@ -1,4 +1,4 @@
-# 🎮 Minecraft AWS Infrastructure & Server Setup
+# 🌸 CherryFrost MC - Minecraft Server on AWS
 
 This project provides a comprehensive, script-based automation suite to deploy a highly available and cost-efficient Minecraft server on AWS. It includes automated infrastructure provisioning, a smart Node.js proxy for traffic management and cost optimization, and support for **Vanilla**, **Forge**, and **Fabric** server types.
 
@@ -10,7 +10,7 @@ The system follows a tiered architecture for security and scalability:
 
 - **VPC Layer:** A dedicated Virtual Private Cloud with Public and Private subnets.
 - **Smart Proxy (Public Subnet):** A custom Node.js application (`proxy/`) that:
-  - Provides a "Big Server" aesthetic with a **Purple/Pink Gradient MOTD**.
+  - Provides a custom **CherryFrost MC** MOTD with cherry blossom theme.
   - Monitors the backend server status via AWS API.
   - **Automatically Starts** the backend EC2 instance when a player joins.
   - Proxies traffic transparently to the backend once it is online.
@@ -36,6 +36,11 @@ minecraftServer/
 ├── scripts/                # Server installation
 │   ├── main-mcServer.sh    # Unified installer (Fabric/Forge/Vanilla)
 │   └── setupMain-mcServer.sh  # Entry point wizard
+├── assets/                 # Branding assets
+│   └── branding/
+│       ├── server-icon.png         # 64x64 server icon for MC
+│       ├── cherryfrost-banner-night.png
+│       └── cherryfrost-banner-sunset.jpg
 ├── docs/                   # Documentation
 └── backups/                # Server backups
 ```
@@ -70,6 +75,7 @@ npm start
 ```
 
 Or use PM2 for production:
+
 ```bash
 npm install -g pm2
 pm2 start src/index.js --name minecraft-proxy
@@ -85,6 +91,7 @@ SSH to the **Minecraft** instance (via Proxy as bastion) and run:
 ```
 
 The wizard will ask you to:
+
 1. **Select Server Type:** Fabric, Forge, or Vanilla
 2. **Select Game Mode:** Survival, Creative, or Hardcore
 3. **Configure RAM:** Default 2GB max, 1GB min
@@ -93,9 +100,18 @@ The wizard will ask you to:
 
 ## ✨ Features
 
-### 🟣 "Purple Kingdom" Aesthetic
+### 🌸 CherryFrost MC Branding
 
-Custom MOTD in the server list, configurable in `proxy/config.json`.
+Custom cherry blossom themed MOTD in the server list, configurable in `proxy/config.json`.
+
+**Server Icon:** Located at `assets/branding/server-icon.png` (64x64 PNG).
+
+To deploy the icon to your server:
+
+```bash
+scp -i mcServer-kp.pem assets/branding/server-icon.png ec2-user@<MC-IP>:/tmp/
+ssh -i mcServer-kp.pem ec2-user@<MC-IP> "sudo cp /tmp/server-icon.png /opt/minecraft/<server-dir>/"
+```
 
 ### 💰 Cost Optimization (Auto-Wake)
 

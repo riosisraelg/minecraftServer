@@ -1,4 +1,4 @@
-# 🏗 Architecture Diagram
+# 🌸 CherryFrost MC - Architecture Diagram
 
 The following Mermaid diagram illustrates the AWS infrastructure layout, including the VPC, Subnets, and Server placement.
 
@@ -17,8 +17,8 @@ architecture-beta
     %% --- Content ---
     %% 3. The "Empty" Servers
     %% Mermaid needs nodes to render the groups. We add placeholder EC2s.
-    service pub_server_slot(logos:aws-ec2)[Proxy Server] in public_subnet
-    service priv_server_slot(logos:aws-ec2)[Minecraft Server] in private_subnet
+    service pub_server_slot(logos:aws-ec2)[CherryFrost Proxy] in public_subnet
+    service priv_server_slot(logos:aws-ec2)[CherryFrost MC Server] in private_subnet
 
     %% Optional: Show internet connectivity intent to the public subnet
     service internet(internet)[Internet Gateway]

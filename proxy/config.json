@@ -1,17 +1,16 @@
 {
-    "project": "mc-server",
-    "region": "mx-central-1",
-    "proxy_port": 25599,
-    "backend": {
-        "fabric": {
-            "instanceId": "",
-            "host": "",
-            "port": 25565
-        }
-    },
-    "motd": {
-        "line1": "§5§lPurple §dServer",
-        "line2": "Fabric Server 1.21.1-Modpack required",
-        "line3": "§7Support server, donate 50 MXN!"
+  "project": "mc-server",
+  "region": "mx-central-1",
+  "proxy_port": 25599,
+  "backend": {
+    "fabric": {
+      "instanceId": "",
+      "host": "",
+      "port": 25565
     }
+  },
+  "motd": {
+    "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
+    "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
+  }
 }

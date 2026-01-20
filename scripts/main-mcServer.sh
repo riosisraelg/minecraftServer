@@ -34,8 +34,8 @@ JVM_ARGS=""
 declare -A FABRIC_CONFIG=(
     [type]="fabric"
     [version]="1.21.1"
-    [loader_version]="0.16.9"
-    [installer_version]="1.0.1"
+    [loader_version]="0.18.4"
+    [installer_version]="1.1.1"
 )
 
 declare -A FORGE_CONFIG=(
