@@ -47,7 +47,10 @@ try {
 const statusCache = initStatusCache(BACKEND.instanceId);
 
 // Initialize connection manager for auto-shutdown
-const connectionManager = initConnectionManager(BACKEND.instanceId, config.autoShutdown);
+const connectionManager = initConnectionManager(
+  BACKEND.instanceId,
+  config.autoShutdown,
+);
 
 console.log("=".repeat(50));
 console.log("🌸 CherryFrost MC Proxy Server Starting...");
@@ -201,7 +204,7 @@ function handleConnection(client) {
             connectionManager.markServerStarted(); // Mark for auto-shutdown eligibility
             sendLoginDisconnect(
               client,
-              "§5§lPurple Kingdom\n\n§eServer is waking up! 😴\n\n§7Please wait §f30-60 seconds§7...\n§7Then join again!",
+              "§dCherry§bFrost\n\n§eServer is waking up! 😴\n\n§7Please wait §f30-60 seconds§7...\n§7Then join again!",
             );
           } else {
             console.log(
@@ -209,7 +212,7 @@ function handleConnection(client) {
             );
             sendLoginDisconnect(
               client,
-              `§5§lPurple Kingdom\n\n§eServer status: §f${currentStatus}\n\n§7Please wait a moment and try again.`,
+              `§dCherry§bFrost\n\n§eServer status: §f${currentStatus}\n\n§7Please wait a moment and try again.`,
             );
           }
           return;

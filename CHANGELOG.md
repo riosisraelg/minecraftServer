@@ -4,6 +4,11 @@ All notable changes to the Minecraft AWS Infrastructure project.
 
 ---
 
+## [2.3.1] - 2026-01-20
+
+### 🐛 Bug Fixes
+- **Branding**: Fixed inconsistency where "Purple Kingdom" was still shown in disconnect messages. Now correctly displays "CherryFrost" to match server assets.
+
 ## [2.3.0] - 2026-01-20
 
 ### 🔌 Auto-Shutdown Feature

@@ -1,6 +1,6 @@
 {
   "name": "minecraftserver",
-  "version": "1.0.0",
+  "version": "2.3.1",
   "description": "This project provides a comprehensive, script-based automation suite to deploy a highly available and cost-efficient Minecraft server on AWS. It includes automated infrastructure provisioning, a proxy layer for traffic management, and support for both **Vanilla** and **Forge** server types.",
   "main": "index.js",
   "directories": {
