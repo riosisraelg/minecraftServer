@@ -5,6 +5,7 @@
  * - Shows custom MOTD in server list
  * - Shows custom server icon (favicon)
  * - Auto-starts backend EC2 when player joins
+ * - Auto-stops backend EC2 when no players for X minutes
  * - Proxies traffic transparently when backend is running
  */
 
@@ -20,6 +21,7 @@ const {
   parseHandshake,
 } = require("./utils/minecraft-protocol");
 const { initStatusCache } = require("./utils/status-cache");
+const { initConnectionManager } = require("./utils/connection-manager");
 
 // Configuration
 const PROXY_PORT = config.proxy_port || 25599;
@@ -43,6 +45,9 @@ try {
 
 // Initialize status cache
 const statusCache = initStatusCache(BACKEND.instanceId);
+
+// Initialize connection manager for auto-shutdown
+const connectionManager = initConnectionManager(BACKEND.instanceId, config.autoShutdown);
 
 console.log("=".repeat(50));
 console.log("🌸 CherryFrost MC Proxy Server Starting...");
@@ -193,6 +198,7 @@ function handleConnection(client) {
           if (statusCache.isStopped()) {
             console.log(`[${clientAddr}] Backend stopped, starting...`);
             startServer(BACKEND.instanceId);
+            connectionManager.markServerStarted(); // Mark for auto-shutdown eligibility
             sendLoginDisconnect(
               client,
               "§5§lPurple Kingdom\n\n§eServer is waking up! 😴\n\n§7Please wait §f30-60 seconds§7...\n§7Then join again!",
@@ -225,6 +231,9 @@ function handleConnection(client) {
           console.log(
             `[${clientAddr}] Connected to backend, piping traffic...`,
           );
+
+          // Track this connection for auto-shutdown
+          connectionManager.addConnection();
 
           // Send saved handshake
           backend.write(handshakeData);
@@ -268,6 +277,7 @@ function handleConnection(client) {
 
         backend.on("close", () => {
           console.log(`[${clientAddr}] Backend connection closed`);
+          connectionManager.removeConnection(); // Track disconnection
           if (!client.destroyed) client.end();
         });
 
@@ -318,6 +328,9 @@ const shutdown = (signal) => {
   console.log(`\n${signal} received. Shutting down gracefully...`);
   if (statusCache && typeof statusCache.stop === "function") {
     statusCache.stop();
+  }
+  if (connectionManager && typeof connectionManager.stop === "function") {
+    connectionManager.stop();
   }
   server.close(() => {
     console.log("✓ Server closed");

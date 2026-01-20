@@ -29,3 +29,5 @@ architecture-beta
     pub_server_slot:R -- L:priv_server_slot
     iam_role:L -- R:pub_server_slot
 ```
+
+For a detailed view of the internal monitoring logic and auto-shutdown sequences, see [PROXY-MONITORING.md](PROXY-MONITORING.md).

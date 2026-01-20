@@ -5,8 +5,9 @@ Smart Node.js proxy server for Minecraft that provides auto-start functionality,
 ## 🌟 Features
 
 - **Auto-Start Backend**: Automatically starts the Minecraft server EC2 instance when players connect
+- **Auto-Stop Backend**: Automatically stops the EC2 instance when no players are connected for X minutes (configurable)
 - **Cost Optimization**: Keep the proxy running 24/7 on a cheap instance while the game server only runs when needed
-- **Purple Kingdom Aesthetic**: Premium gradient MOTD in the server list
+- **CherryFrost MC Branding**: Custom cherry blossom themed MOTD and server icon
 - **Protocol Support**: Minecraft 1.21.1 (Protocol 767)
 - **AWS Integration**: Direct integration with AWS EC2 for instance management
 
@@ -92,8 +93,12 @@ Edit `config.json` to customize:
     }
   },
   "motd": {
-    "line1": "§5§lPurple Kingdom §8- §dOfficial §5Fabric §dServer",
-    "line2": "§7Join now for a premium experience!"
+    "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
+    "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
+  },
+  "autoShutdown": {
+    "enabled": true,
+    "idleTimeoutMinutes": 10
   }
 }
 ```
@@ -107,6 +112,8 @@ Edit `config.json` to customize:
 - **backend.fabric.host**: Private IP of the backend server
 - **backend.fabric.port**: Port the Minecraft server runs on
 - **motd**: Message of the Day shown in the server list
+- **autoShutdown.enabled**: Enable/disable auto-shutdown feature (default: true)
+- **autoShutdown.idleTimeoutMinutes**: Minutes to wait after last player disconnects before stopping EC2 (default: 10)
 
 ## 🔧 Troubleshooting
 
@@ -156,8 +163,9 @@ proxy/
 │   ├── index.js              # Main proxy server
 │   ├── aws.js                # AWS EC2 integration
 │   └── utils/                # Protocol utilities
-│       ├── minecraft-protocol.js
-│       └── status-cache.js
+│       ├── minecraft-protocol.js  # MC packet parsing
+│       ├── status-cache.js        # Server status polling (10s interval)
+│       └── connection-manager.js  # Player tracking & auto-shutdown
 ├── config.json               # Configuration file
 ├── package.json              # Dependencies
 ├── ecosystem.config.js       # PM2 configuration
@@ -190,12 +198,16 @@ The proxy requires AWS credentials to start/stop EC2 instances. Ensure the EC2 i
 
 ## 📊 How It Works
 
-1. **Server List Ping**: Proxy responds with custom MOTD and server status
+1. **Server List Ping**: Proxy responds with custom CherryFrost MC MOTD and server status
 2. **Player Joins**: 
    - If backend is stopped → Start the instance and show "waking up" message
    - If backend is starting → Show "please wait 30-60 seconds" message
    - If backend is running → Pipe connection transparently to backend
 3. **Gameplay**: All packets are forwarded bidirectionally between client and backend
+4. **Player Disconnects**:
+   - Connection tracked by `ConnectionManager`
+   - When last player disconnects, idle timer starts
+   - After `idleTimeoutMinutes`, EC2 instance is auto-stopped
 
 ## 🔄 Updates & Maintenance
 

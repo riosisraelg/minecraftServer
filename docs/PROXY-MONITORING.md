@@ -23,6 +23,7 @@ El sistema de monitoreo implementa un patrón de **polling** que consulta el est
 - ✅ Encender automáticamente el servidor cuando un jugador intenta conectarse
 - ✅ Proxy transparente del tráfico cuando el servidor está encendido
 - ✅ Mostrar mensajes informativos durante estados de transición
+- ✅ **Apagar automáticamente** el servidor cuando no hay jugadores conectados (configurable)
 
 ---
 
@@ -33,7 +34,9 @@ graph TB
     subgraph "Proxy Server (Siempre Activo)"
         A[index.js<br/>Servidor Principal] --> B[StatusCache<br/>Sistema de Polling]
         A --> C[aws.js<br/>Cliente AWS EC2]
+        A --> CM[ConnectionManager<br/>Tracking & Auto-Shutdown]
         B --> C
+        CM --> C
     end
 
     subgraph "AWS Cloud"
@@ -52,6 +55,7 @@ graph TB
     style A fill:#4a90d9,color:#fff
     style B fill:#50c878,color:#fff
     style C fill:#ff9500,color:#fff
+    style CM fill:#e74c3c,color:#fff
     style D fill:#9b59b6,color:#fff
 ```
 
@@ -110,7 +114,42 @@ class StatusCache {
 
 ---
 
-### 3. `src/index.js` - Servidor Proxy Principal
+### 3. `src/utils/connection-manager.js` - Gestión de Conexiones y Auto-Shutdown
+
+Maneja el tracking de jugadores conectados y el apagado automático del servidor.
+
+#### Clase `ConnectionManager`
+
+```javascript
+class ConnectionManager {
+    constructor(instanceId, config = {})
+    markServerStarted()  // Marca servidor como elegible para auto-shutdown
+    addConnection()      // Incrementa contador de conexiones
+    removeConnection()   // Decrementa contador e inicia timer si = 0
+    startIdleTimer()     // Inicia timer de apagado
+    cancelIdleTimer()    // Cancela timer si hay nueva conexión
+    getStatus()          // Retorna estado actual
+    stop()               // Limpieza al cerrar proxy
+}
+```
+
+#### Configuración
+
+| Parámetro            | Tipo    | Default | Descripción                           |
+| -------------------- | ------- | ------- | ------------------------------------- |
+| `enabled`            | boolean | true    | Habilita/deshabilita auto-shutdown    |
+| `idleTimeoutMinutes` | number  | 10      | Minutos de inactividad antes de apagar|
+
+#### Funciones Exportadas
+
+| Función                               | Descripción                        |
+| ------------------------------------- | ---------------------------------- |
+| `initConnectionManager(instanceId, config)` | Inicializa el singleton      |
+| `getConnectionManager()`              | Obtiene la instancia del singleton |
+
+---
+
+### 4. `src/index.js` - Servidor Proxy Principal
 
 Orquesta todo el sistema y maneja las conexiones de los jugadores.
 
@@ -264,27 +303,76 @@ sequenceDiagram
 
 ---
 
+### Secuencia de Apagado Automático (Auto-Shutdown)
+
+```mermaid
+sequenceDiagram
+    participant J as 🎮 Jugador
+    participant P as Proxy Server
+    participant CM as ConnectionManager
+    participant A as AWS EC2
+    participant M as MC Server
+
+    Note over J,M: Jugador jugando...
+    
+    J->>P: Desconexión TCP
+    P->>CM: removeConnection()
+    CM->>CM: activeConnections = 0
+    CM->>CM: startIdleTimer(10 min)
+    
+    Note over CM: Esperando 10 minutos...
+    
+    alt Nuevo jugador conecta
+        J->>P: Nueva conexión
+        P->>CM: addConnection()
+        CM->>CM: cancelIdleTimer()
+        Note over CM: Timer cancelado
+    else Sin conexiones
+        CM->>CM: ⏰ Timeout alcanzado!
+        CM->>CM: verificar activeConnections == 0
+        CM->>A: StopInstances
+        A-->>CM: Stopping...
+        Note over A,M: Servidor apagándose
+        A->>M: Shutdown Instance
+        CM->>CM: serverStartedByProxy = false
+    end
+```
+
+---
+
 ## Configuración
 
 ### Archivo `config.json`
 
 ```json
 {
-  "region": "us-east-1",
+  "project": "mc-server",
+  "region": "mx-central-1",
   "proxy_port": 25599,
   "backend": {
     "fabric": {
       "instanceId": "i-xxxxxxxxxxxxxxxxx",
-      "host": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
+      "host": "10.0.2.161",
       "port": 25565
     }
   },
   "motd": {
-    "line1": "§5§lPurple Kingdom",
-    "line2": "§7Welcome to the server!"
+    "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
+    "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
+  },
+  "autoShutdown": {
+    "enabled": true,
+    "idleTimeoutMinutes": 10
   }
 }
 ```
+
+### Opciones de Auto-Shutdown
+
+| Opción               | Tipo    | Default | Descripción                                   |
+| -------------------- | ------- | ------- | --------------------------------------------- |
+| `enabled`            | boolean | true    | Habilita/deshabilita el apagado automático    |
+| `idleTimeoutMinutes` | number  | 10      | Minutos de inactividad antes de apagar el EC2 |
 
 ### Variables de Entorno (Opcional)
 
@@ -348,6 +436,38 @@ await stopServer("i-1234567890abcdef0");
 const status = await getServerStatus("i-1234567890abcdef0");
 ```
 
+### Inicialización del ConnectionManager
+
+```javascript
+const { initConnectionManager, getConnectionManager } = require("./utils/connection-manager");
+
+// Inicializa con configuración de auto-shutdown
+const connectionManager = initConnectionManager("i-1234567890abcdef0", {
+  enabled: true,
+  idleTimeoutMinutes: 10
+});
+```
+
+### Uso del ConnectionManager
+
+```javascript
+// Marcar que el servidor fue iniciado por el proxy
+connectionManager.markServerStarted();
+
+// Cuando un jugador se conecta al backend
+connectionManager.addConnection();
+
+// Cuando un jugador se desconecta
+connectionManager.removeConnection();
+
+// Obtener estado actual
+const status = connectionManager.getStatus();
+// { enabled: true, activeConnections: 2, idleTimerActive: false, serverStartedByProxy: true }
+
+// Detener el manager (cleanup)
+connectionManager.stop();
+```
+
 ---
 
 ## Notas Técnicas
@@ -372,9 +492,10 @@ const status = await getServerStatus("i-1234567890abcdef0");
 
 ## Archivos Relacionados
 
-| Archivo           | Ubicación                         | Descripción               |
-| ----------------- | --------------------------------- | ------------------------- |
-| `aws.js`          | `proxy/src/aws.js`                | Cliente AWS EC2           |
-| `status-cache.js` | `proxy/src/utils/status-cache.js` | Sistema de polling        |
-| `index.js`        | `proxy/src/index.js`              | Servidor proxy principal  |
-| `config.json`     | `proxy/config.json`               | Configuración del sistema |
+| Archivo                 | Ubicación                                | Descripción                             |
+| ----------------------- | ---------------------------------------- | --------------------------------------- |
+| `aws.js`                | `proxy/src/aws.js`                       | Cliente AWS EC2                         |
+| `status-cache.js`       | `proxy/src/utils/status-cache.js`        | Sistema de polling                      |
+| `connection-manager.js` | `proxy/src/utils/connection-manager.js`  | Tracking de jugadores y auto-shutdown   |
+| `index.js`              | `proxy/src/index.js`                     | Servidor proxy principal                |
+| `config.json`           | `proxy/config.json`                      | Configuración del sistema               |

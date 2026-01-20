@@ -12,5 +12,9 @@
   "motd": {
     "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
     "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
+  },
+  "autoShutdown": {
+    "enabled": true,
+    "idleTimeoutMinutes": 10
   }
 }

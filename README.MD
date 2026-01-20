@@ -31,6 +31,9 @@ minecraftServer/
 │   │   ├── index.js        # Main proxy
 │   │   ├── aws.js          # AWS EC2 controller
 │   │   └── utils/          # Protocol utilities
+│   │       ├── minecraft-protocol.js  # MC packet handling
+│   │       ├── status-cache.js        # Server status polling
+│   │       └── connection-manager.js  # Player tracking & auto-shutdown
 │   ├── config.json         # Proxy configuration
 │   └── package.json
 ├── scripts/                # Server installation
@@ -113,11 +116,22 @@ scp -i mcServer-kp.pem assets/branding/server-icon.png ec2-user@<MC-IP>:/tmp/
 ssh -i mcServer-kp.pem ec2-user@<MC-IP> "sudo cp /tmp/server-icon.png /opt/minecraft/<server-dir>/"
 ```
 
-### 💰 Cost Optimization (Auto-Wake)
+### 💰 Cost Optimization (Auto-Wake & Auto-Sleep)
 
-1. Stop the backend when not playing.
-2. Proxy (t4g.nano) stays online for ~$3/month.
-3. Player joins → Proxy auto-starts backend → Player waits 30-60s → Plays!
+The proxy implements a complete lifecycle management system:
+
+1. **Auto-Wake:** Player connects → Proxy auto-starts backend EC2 → Player waits 30-60s → Plays!
+2. **Auto-Sleep:** All players disconnect → After idle timeout → Proxy auto-stops backend EC2
+3. Proxy (t4g.nano) stays online for ~$3/month while game server only runs when needed
+
+**Configurable idle timeout** (default 10 minutes) in `proxy/config.json`:
+
+```json
+"autoShutdown": {
+  "enabled": true,
+  "idleTimeoutMinutes": 10
+}
+```
 
 ### 🛡 Security
 
@@ -132,7 +146,8 @@ ssh -i mcServer-kp.pem ec2-user@<MC-IP> "sudo cp /tmp/server-icon.png /opt/minec
 
 ```json
 {
-  "region": "us-east-1",
+  "project": "mc-server",
+  "region": "mx-central-1",
   "proxy_port": 25599,
   "backend": {
     "fabric": {
@@ -140,6 +155,14 @@ ssh -i mcServer-kp.pem ec2-user@<MC-IP> "sudo cp /tmp/server-icon.png /opt/minec
       "host": "10.0.2.xxx",
       "port": 25565
     }
+  },
+  "motd": {
+    "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
+    "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
+  },
+  "autoShutdown": {
+    "enabled": true,
+    "idleTimeoutMinutes": 10
   }
 }
 ```

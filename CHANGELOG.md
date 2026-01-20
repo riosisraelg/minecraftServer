@@ -4,6 +4,42 @@ All notable changes to the Minecraft AWS Infrastructure project.
 
 ---
 
+## [2.3.0] - 2026-01-20
+
+### 🔌 Auto-Shutdown Feature
+
+#### New Components
+- Added `proxy/src/utils/connection-manager.js` - Singleton class that tracks active player connections
+- Implements idle timer that auto-stops EC2 instance when no players are connected
+
+#### Features
+- **Connection Tracking**: Monitors active backend connections in real-time
+- **Idle Timer**: Configurable timeout (default 10 minutes) before shutting down
+- **Smart Shutdown**: Only shuts down servers that were started by the proxy
+- **Graceful Handling**: Timer cancels immediately when a new player connects
+
+#### Configuration
+New `autoShutdown` section in `config.json`:
+```json
+{
+  "autoShutdown": {
+    "enabled": true,
+    "idleTimeoutMinutes": 10
+  }
+}
+```
+
+#### Documentation Updates
+- Updated `README.MD` with Auto-Wake & Auto-Sleep lifecycle
+- Updated `proxy/README.md` with ConnectionManager documentation
+- Updated `docs/PROXY-MONITORING.md` with:
+  - New architecture diagram showing ConnectionManager
+  - Auto-shutdown sequence diagram
+  - ConnectionManager API reference
+  - Updated configuration options table
+
+---
+
 ## [2.2.0] - 2026-01-19
 
 ### 🌸 CherryFrost MC Branding
