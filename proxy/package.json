@@ -25,6 +25,6 @@
   "dependencies": {
     "@aws-sdk/client-ec2": "^3.966.0",
     "dotenv": "^17.2.3",
-    "minecraft-protocol": "1.60.0"
+    "minecraft-protocol": "^1.54.0"
   }
 }
