@@ -24,6 +24,9 @@ GAMEMODE=""
 SERVER_ID=""
 MC_SERVICE_NAME=""
 SERVER_DIR=""
+LEVEL_SEED=""
+IMPORT_FROM=""
+DO_IMPORT="false"
 
 # JVM Settings
 JVM_MX="2048M"
@@ -76,7 +79,7 @@ print_info()    { echo "ℹ️  $1"; }
 
 press_enter() {
     echo ""
-    read -p "   Presiona ENTER para continuar..." _
+    read -p "   Press ENTER to continue..." _
 }
 
 # ===== MAIN MENU =====
@@ -86,17 +89,17 @@ main_menu() {
         clear_screen
         print_header "🎮 Minecraft Server Manager"
         echo ""
-        echo "   1) 🆕 Crear nuevo servidor"
-        echo "   2) 📋 Gestionar servidores existentes"
-        echo "   3) ❌ Salir"
+        echo "   1) 🆕 Create new server"
+        echo "   2) 📋 Manage existing servers"
+        echo "   3) ❌ Exit"
         echo ""
-        read -p "   Selecciona una opción [1-3]: " choice
+        read -p "   Select an option [1-3]: " choice
         
         case "$choice" in
             1) create_server_flow ;;
             2) manage_servers_flow ;;
-            3) echo ""; print_info "¡Hasta luego!"; exit 0 ;;
-            *) print_error "Opción inválida"; sleep 1 ;;
+            3) echo ""; print_info "See you later!"; exit 0 ;;
+            *) print_error "Invalid option"; sleep 1 ;;
         esac
     done
 }
@@ -105,7 +108,7 @@ main_menu() {
 
 create_server_flow() {
     clear_screen
-    print_header "🆕 Crear Nuevo Servidor"
+    print_header "🆕 Create New Server"
     
     # Step 1: Select type
     select_server_type || return
@@ -116,22 +119,34 @@ create_server_flow() {
     # Step 3: Configure RAM
     configure_ram
     
-    # Step 4: Show summary and confirm
-    print_subheader "📋 Resumen de Configuración"
+    # Step 4: Configure Seed
+    configure_seed
+    
+    # Step 5: Configure Import
+    configure_import
+    
+    # Step 6: Show summary and confirm
+    print_subheader "📋 Configuration Summary"
     echo ""
-    echo "   Tipo:      ${MC_TYPE^} ${MC_VERSION}"
-    echo "   Modo:      ${GAMEMODE^}"
-    echo "   Memoria:   ${JVM_MX} máx / ${JVM_MS} mín"
+    echo "   Type:      ${MC_TYPE^} ${MC_VERSION}"
+    echo "   Mode:      ${GAMEMODE^}"
+    echo "   Memory:    ${JVM_MX} max / ${JVM_MS} min"
+    echo "   Seed:      ${LEVEL_SEED:-Random}"
+    if [ "$DO_IMPORT" == "true" ]; then
+        echo "   Import:    $IMPORT_FROM"
+    fi
     echo ""
-    read -p "   ¿Proceder con la instalación? [S/n]: " confirm
+    read -p "   Proceed with installation? [Y/n]: " confirm
     
     if [[ "$confirm" =~ ^[Nn]$ ]]; then
-        print_warning "Instalación cancelada."
+        print_warning "Installation canceled."
         press_enter
         return
     fi
     
-    # Step 5: Find ID and install
+
+    
+    # Step 7: Find ID and install
     find_next_available_id
     configure_server_paths
     install_server
@@ -139,14 +154,14 @@ create_server_flow() {
 }
 
 select_server_type() {
-    print_subheader "📦 Tipo de Servidor"
+    print_subheader "📦 Server Type"
     echo ""
-    echo "   1) Fabric  - Recomendado para mods + rendimiento"
-    echo "   2) Forge   - Plataforma clásica de mods"
-    echo "   3) Vanilla - Minecraft puro"
-    echo "   0) Volver"
+    echo "   1) Fabric  - Recommended for mods + performance"
+    echo "   2) Forge   - Classic modding platform"
+    echo "   3) Vanilla - Pure Minecraft"
+    echo "   0) Back"
     echo ""
-    read -p "   Selecciona [0-3]: " type_choice
+    read -p "   Select [0-3]: " type_choice
     
     case "$type_choice" in
         0) return 1 ;;
@@ -174,26 +189,26 @@ select_server_type() {
             START_CMD="java @user_jvm_args.txt -jar server.jar nogui"
             ;;
         *)
-            print_error "Opción inválida"
+            print_error "Invalid option"
             sleep 1
             select_server_type
             return $?
             ;;
     esac
     
-    print_success "Seleccionado: ${MC_TYPE^} ${MC_VERSION}"
+    print_success "Selected: ${MC_TYPE^} ${MC_VERSION}"
     return 0
 }
 
 select_gamemode() {
-    print_subheader "🎯 Modo de Juego"
+    print_subheader "🎯 Game Mode"
     echo ""
-    echo "   1) Survival  - Experiencia clásica"
-    echo "   2) Creative  - Construcción libre"
-    echo "   3) Hardcore  - Una sola vida"
-    echo "   0) Volver"
+    echo "   1) Survival  - Classic experience"
+    echo "   2) Creative  - Free building"
+    echo "3) Hardcore  - One life only"
+    echo "   0) Back"
     echo ""
-    read -p "   Selecciona [0-3]: " mode_choice
+    read -p "   Select [0-3]: " mode_choice
     
     case "$mode_choice" in
         0) return 1 ;;
@@ -201,26 +216,26 @@ select_gamemode() {
         2) GAMEMODE="creative" ;;
         3) GAMEMODE="hardcore" ;;
         *)
-            print_error "Opción inválida"
+            print_error "Invalid option"
             sleep 1
             select_gamemode
             return $?
             ;;
     esac
     
-    print_success "Modo: ${GAMEMODE^}"
+    print_success "Mode: ${GAMEMODE^}"
     return 0
 }
 
 configure_ram() {
-    print_subheader "💾 Configuración de Memoria"
+    print_subheader "💾 Memory Configuration"
     echo ""
-    echo "   Ejemplos: 1024M, 2048M, 4G"
+    echo "   Examples: 1024M, 2048M, 4G"
     echo ""
-    read -p "   Memoria máxima (default 2048M): " user_mx
+    read -p "   Max Memory (default 2048M): " user_mx
     JVM_MX=${user_mx:-"2048M"}
     
-    read -p "   Memoria mínima (default 1024M): " user_ms
+    read -p "   Min Memory (default 1024M): " user_ms
     JVM_MS=${user_ms:-"1024M"}
     
     # Validate
@@ -230,12 +245,56 @@ configure_ram() {
     [[ "$JVM_MS" == *[Gg]* ]] && ms_int=$((ms_int * 1024))
     
     if [ "$ms_int" -gt "$mx_int" ]; then
-        print_warning "Mín > Máx. Ajustando mín = máx."
+        print_warning "Min > Max. Adjusting min = max."
         JVM_MS="$JVM_MX"
     fi
     
     JVM_ARGS="-Xmx${JVM_MX} -Xms${JVM_MS}"
-    print_success "Memoria: $JVM_ARGS"
+    print_success "Memory: $JVM_ARGS"
+}
+
+configure_seed() {
+    print_subheader "🌱 Seed Configuration"
+    echo ""
+    echo "   Leave blank for a random seed."
+    echo ""
+    read -p "   World Seed: " user_seed
+    LEVEL_SEED="$user_seed"
+    
+    if [ -z "$LEVEL_SEED" ]; then
+        print_success "Seed: Random"
+    else
+        print_success "Seed: $LEVEL_SEED"
+    fi
+}
+
+configure_import() {
+    print_subheader "📦 Import Configuration"
+    echo ""
+    echo "   Do you want to import mods, configs and worlds"
+    echo "   from another local instance?"
+    echo ""
+    read -p "   Import? [y/N]: " want_import
+    
+    if [[ ! "$want_import" =~ ^[Yy]$ ]]; then
+        DO_IMPORT="false"
+        return
+    fi
+    
+    while true; do
+        read -p "   Source folder path: " src_path
+        # Expand ~ if used
+        src_path="${src_path/#\~/$HOME}"
+        
+        if [ -d "$src_path" ]; then
+            IMPORT_FROM="$src_path"
+            DO_IMPORT="true"
+            print_success "Valid source: $IMPORT_FROM"
+            break
+        else
+            print_error "Path does not exist or is not a directory."
+        fi
+    done
 }
 
 find_next_available_id() {
@@ -247,7 +306,7 @@ find_next_available_id() {
             return 0
         fi
     done
-    print_error "No hay IDs disponibles (01-99)."
+    print_error "No IDs available (01-99)."
     exit 1
 }
 
@@ -258,10 +317,10 @@ configure_server_paths() {
 }
 
 install_server() {
-    print_subheader "🚀 Instalando Servidor"
+    print_subheader "🚀 Installing Server"
     
     # Setup user and directories
-    echo "👤 Configurando usuario y directorios..."
+    echo "👤 Configuring user and directories..."
     if [ ! -d "${MC_DIR}" ]; then
         sudo mkdir -p "${MC_DIR}"
         id -u "${MC_USER}" &>/dev/null || sudo useradd -m "${MC_USER}"
@@ -273,11 +332,11 @@ install_server() {
     cd "${SERVER_DIR}"
     
     # Download
-    echo "⬇️  Descargando ${MC_TYPE}..."
+    echo "⬇️  Downloading ${MC_TYPE}..."
     sudo -u "${MC_USER}" wget -q "${INSTALLER_URL}" -O "${SERVER_DIR}/${INSTALLER_JAR}"
     
     # Install based on type
-    echo "🔨 Instalando..."
+    echo "🔨 Installing..."
     case "$MC_TYPE" in
         fabric)
             local loader="${FABRIC_CONFIG[loader_version]}"
@@ -298,7 +357,7 @@ install_server() {
     esac
     
     # Configure
-    echo "📜 Configurando..."
+    echo "📜 Configuring..."
     if [ -f "eula.txt" ]; then
         sudo -u "${MC_USER}" sed -i 's/eula=false/eula=true/' eula.txt
     else
@@ -308,6 +367,60 @@ install_server() {
     if [ -f "server.properties" ]; then
         sudo -u "${MC_USER}" sed -i 's/online-mode=true/online-mode=false/' server.properties
         sudo -u "${MC_USER}" sed -i 's/enforce-secure-profile=true/enforce-secure-profile=false/' server.properties
+        
+        if [ -n "$LEVEL_SEED" ]; then
+             sudo -u "${MC_USER}" sed -i "s/level-seed=/level-seed=${LEVEL_SEED}/" server.properties
+             # If level-seed doesn't exist just in case (though it usually does), append it? 
+             # Standard server.properties has it. Detailed logic: grep check or just append if missing.
+             # For simplicity, assuming it exists or we append if strict compliance needed.
+             # Let's just append if not replaced to be safe or leave as is.
+             # Actually simplest is just to make sure it's set.
+             if ! grep -q "level-seed=" server.properties; then
+                 echo "level-seed=${LEVEL_SEED}" | sudo -u "${MC_USER}" tee -a server.properties > /dev/null
+             fi
+        fi
+    fi
+    
+    # Import Logic
+    if [ "$DO_IMPORT" == "true" ]; then
+        echo "📦 Importing files from $IMPORT_FROM..."
+        
+        # Helper to copy if exists
+        copy_if_exists() {
+            local src="$1"
+            local dest="$2"
+            if [ -e "$src" ]; then
+                echo "   -> Copying $(basename "$src")..."
+                sudo cp -r "$src" "$dest"
+                sudo chown -R "${MC_USER}:${MC_USER}" "$dest"
+            fi
+        }
+        
+        copy_if_exists "${IMPORT_FROM}/mods" "${SERVER_DIR}/"
+        copy_if_exists "${IMPORT_FROM}/config" "${SERVER_DIR}/"
+        
+        # For world/saves
+        # Common names: "world", "saves"
+        if [ -d "${IMPORT_FROM}/saves" ]; then
+             # If strictly one world intended, copies content of saves to 'world' folder or copies saves folder itself?
+             # Server uses 'world' by default. 
+             # Taking first world from saves if exists, or copying 'world' folder directly.
+             if [ -d "${IMPORT_FROM}/world" ]; then
+                 copy_if_exists "${IMPORT_FROM}/world" "${SERVER_DIR}/"
+             else
+                 # Try to find a world inside saves
+                 local first_save=$(ls -d "${IMPORT_FROM}/saves/"* 2>/dev/null | head -n 1)
+                 if [ -n "$first_save" ]; then
+                      echo "   -> Copying world from saves: $(basename "$first_save") -> world"
+                      sudo cp -r "$first_save" "${SERVER_DIR}/world"
+                      sudo chown -R "${MC_USER}:${MC_USER}" "${SERVER_DIR}/world"
+                 fi
+             fi
+        elif [ -d "${IMPORT_FROM}/world" ]; then
+             copy_if_exists "${IMPORT_FROM}/world" "${SERVER_DIR}/"
+        fi
+        
+        print_success "Import complete."
     fi
     
     sudo -u "${MC_USER}" bash -c "echo '${JVM_ARGS}' > ${SERVER_DIR}/user_jvm_args.txt"
@@ -321,7 +434,7 @@ EOF
     sudo chmod +x start
     
     # Create systemd service
-    echo "⚙️  Creando servicio systemd..."
+    echo "⚙️  Creating systemd service..."
     sudo bash -c "cat > /etc/systemd/system/${MC_SERVICE_NAME}.service <<EOF
 [Unit]
 Description=${MC_TYPE^} Minecraft Server
@@ -341,16 +454,16 @@ EOF"
     sudo systemctl enable "${MC_SERVICE_NAME}.service"
     
     # Final summary
-    print_header "✅ INSTALACIÓN COMPLETADA"
+    print_header "✅ INSTALLATION COMPLETED"
     echo ""
-    echo "   Servicio:   ${MC_SERVICE_NAME}"
-    echo "   Directorio: ${SERVER_DIR}"
-    echo "   Puerto:     25565"
+    echo "   Service:    ${MC_SERVICE_NAME}"
+    echo "   Directory:  ${SERVER_DIR}"
+    echo "   Port:       25565"
     echo ""
-    echo "   Comandos útiles:"
-    echo "   • Iniciar: sudo systemctl start ${MC_SERVICE_NAME}"
-    echo "   • Detener: sudo systemctl stop ${MC_SERVICE_NAME}"
-    echo "   • Estado:  sudo systemctl status ${MC_SERVICE_NAME}"
+    echo "   Useful commands:"
+    echo "   • Start:   sudo systemctl start ${MC_SERVICE_NAME}"
+    echo "   • Stop:    sudo systemctl stop ${MC_SERVICE_NAME}"
+    echo "   • Status:  sudo systemctl status ${MC_SERVICE_NAME}"
     echo "   • Logs:    journalctl -u ${MC_SERVICE_NAME} -f"
 }
 
@@ -359,7 +472,7 @@ EOF"
 manage_servers_flow() {
     while true; do
         clear_screen
-        print_header "📋 Gestionar Servidores"
+        print_header "📋 Manage Servers"
         
         # Find all services
         local services=($(ls /etc/systemd/system/*.service 2>/dev/null | xargs -I{} basename {} .service | grep -E "^[0-9]{2}-(fabric|forge|vanilla)-"))
@@ -367,13 +480,13 @@ manage_servers_flow() {
         
         if [ $count -eq 0 ]; then
             echo ""
-            print_warning "No hay servidores instalados."
+            print_warning "No servers installed."
             press_enter
             return
         fi
         
         echo ""
-        echo "   #   SERVICIO                           ESTADO"
+        echo "   #   SERVICE                            STATUS"
         echo "   ─── ────────────────────────────────── ──────────"
         
         local i=1
@@ -389,9 +502,9 @@ manage_servers_flow() {
         done
         
         echo ""
-        echo "   0) Volver al menú principal"
+        echo "   0) Back to main menu"
         echo ""
-        read -p "   Selecciona servidor [0-$count]: " selection
+        read -p "   Select server [0-$count]: " selection
         
         [[ "$selection" == "0" ]] && return
         
@@ -399,7 +512,7 @@ manage_servers_flow() {
             local selected_service="${services[$((selection-1))]}"
             server_actions_menu "$selected_service"
         else
-            print_error "Selección inválida"
+            print_error "Invalid selection"
             sleep 1
         fi
     done
@@ -419,41 +532,41 @@ server_actions_menu() {
         [[ "$status" == "failed" ]] && status_icon="🔴"
         
         echo ""
-        echo "   Estado actual: $status_icon $status"
+        echo "   Current status: $status_icon $status"
         echo ""
         
         if [[ "$status" == "active" ]]; then
-            echo "   1) 🛑 Detener servidor"
+            echo "   1) 🛑 Stop server"
         else
-            echo "   1) ▶️  Iniciar servidor"
+            echo "   1) ▶️  Start server"
         fi
-        echo "   2) 🔄 Reiniciar servidor"
-        echo "   3) 📋 Ver logs (últimas 50 líneas)"
-        echo "   4) 📋 Ver logs en vivo"
-        echo "   5) 🔄 Reinstalar (wipe completo)"
-        echo "   6) 🗑️  Eliminar servidor"
-        echo "   0) ← Volver"
+        echo "   2) 🔄 Restart server"
+        echo "   3) 📋 View logs (last 50 lines)"
+        echo "   4) 📋 View live logs"
+        echo "   5) 🔄 Reinstall (full wipe)"
+        echo "   6) 🗑️  Delete server"
+        echo "   0) ← Back"
         echo ""
-        read -p "   Selecciona acción [0-6]: " action
+        read -p "   Select action [0-6]: " action
         
         case "$action" in
             0) return ;;
             1)
                 if [[ "$status" == "active" ]]; then
-                    echo "🛑 Deteniendo..."
+                    echo "🛑 Stopping..."
                     sudo systemctl stop "$service_name"
-                    print_success "Servidor detenido"
+                    print_success "Server stopped"
                 else
-                    echo "▶️  Iniciando..."
+                    echo "▶️  Starting..."
                     sudo systemctl start "$service_name"
-                    print_success "Servidor iniciado"
+                    print_success "Server started"
                 fi
                 sleep 2
                 ;;
             2)
-                echo "🔄 Reiniciando..."
+                echo "🔄 Restarting..."
                 sudo systemctl restart "$service_name"
-                print_success "Servidor reiniciado"
+                print_success "Server restarted"
                 sleep 2
                 ;;
             3)
@@ -464,7 +577,7 @@ server_actions_menu() {
                 ;;
             4)
                 clear_screen
-                print_info "Presiona Ctrl+C para salir de los logs"
+                print_info "Press Ctrl+C to exit logs"
                 sleep 2
                 journalctl -u "$service_name" -f
                 ;;
@@ -477,7 +590,7 @@ server_actions_menu() {
                 return
                 ;;
             *)
-                print_error "Opción inválida"
+                print_error "Invalid option"
                 sleep 1
                 ;;
         esac
@@ -487,13 +600,13 @@ server_actions_menu() {
 reinstall_server() {
     local service_name="$1"
     
-    print_subheader "🔄 Reinstalar: $service_name"
+    print_subheader "🔄 Reinstall: $service_name"
     echo ""
-    print_warning "Esto eliminará TODOS los datos del servidor y lo reinstalará."
-    read -p "   ¿Estás seguro? Escribe 'REINSTALAR' para confirmar: " confirm
+    print_warning "This will delete ALL data and reinstall the server."
+    read -p "   Are you sure? Type 'REINSTALL' to confirm: " confirm
     
-    if [[ "$confirm" != "REINSTALAR" ]]; then
-        print_warning "Reinstalación cancelada."
+    if [[ "$confirm" != "REINSTALL" ]]; then
+        print_warning "Reinstall canceled."
         press_enter
         return
     fi
@@ -507,11 +620,11 @@ reinstall_server() {
     # Get working directory before deletion
     local old_dir=$(systemctl show -p WorkingDirectory --value "$service_name")
     
-    echo "🛑 Deteniendo servicio..."
+    echo "🛑 Stopping service..."
     sudo systemctl stop "$service_name" 2>/dev/null || true
     sudo systemctl disable "$service_name" 2>/dev/null || true
     
-    echo "🗑️  Eliminando servicio y datos..."
+    echo "🗑️  Deleting service and data..."
     sudo rm -f "/etc/systemd/system/${service_name}.service"
     sudo systemctl daemon-reload
     
@@ -550,33 +663,33 @@ reinstall_server() {
 delete_server() {
     local service_name="$1"
     
-    print_subheader "🗑️  Eliminar: $service_name"
+    print_subheader "🗑️  Delete: $service_name"
     echo ""
-    print_warning "Esto eliminará PERMANENTEMENTE el servidor y todos sus datos."
-    read -p "   ¿Estás seguro? Escribe 'ELIMINAR' para confirmar: " confirm
+    print_warning "This will PERMANENTLY delete the server and all data."
+    read -p "   Are you sure? Type 'DELETE' to confirm: " confirm
     
-    if [[ "$confirm" != "ELIMINAR" ]]; then
-        print_warning "Eliminación cancelada."
+    if [[ "$confirm" != "DELETE" ]]; then
+        print_warning "Deletion canceled."
         press_enter
         return
     fi
     
     local server_dir=$(systemctl show -p WorkingDirectory --value "$service_name")
     
-    echo "🛑 Deteniendo servicio..."
+    echo "🛑 Stopping service..."
     sudo systemctl stop "$service_name" 2>/dev/null || true
     sudo systemctl disable "$service_name" 2>/dev/null || true
     
-    echo "🗑️  Eliminando servicio..."
+    echo "🗑️  Deleting service..."
     sudo rm -f "/etc/systemd/system/${service_name}.service"
     sudo systemctl daemon-reload
     
     if [ -d "$server_dir" ]; then
-        echo "🗑️  Eliminando directorio: $server_dir"
+        echo "🗑️  Deleting directory: $server_dir"
         sudo rm -rf "$server_dir"
     fi
     
-    print_success "Servidor '$service_name' eliminado."
+    print_success "Server '$service_name' deleted."
     press_enter
 }
 
@@ -585,7 +698,7 @@ delete_server() {
 main() {
     # Check if running as root
     if [ "$EUID" -eq 0 ]; then
-        print_error "No ejecutes este script como root. Usa un usuario normal."
+        print_error "Do not run this script as root. Use a normal user."
         exit 1
     fi
     

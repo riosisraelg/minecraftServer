@@ -6,6 +6,7 @@
  */
 
 const { stopServer } = require('../aws');
+const { stopMinecraftService } = require('../ssm');
 
 class ConnectionManager {
     constructor(instanceId, config = {}) {
@@ -81,6 +82,11 @@ class ConnectionManager {
             if (this.activeConnections === 0) {
                 console.log('[ConnectionManager] 🛑 No active connections - initiating server shutdown...');
                 try {
+                    // Attempt graceful shutdown first
+                    console.log('[ConnectionManager] 💾 Attempting graceful service stop via SSM...');
+                    await stopMinecraftService(this.instanceId);
+
+                    console.log('[ConnectionManager] 🔌 Stopping EC2 instance...');
                     const result = await stopServer(this.instanceId);
                     if (result) {
                         console.log('[ConnectionManager] ✅ Server shutdown initiated successfully');
