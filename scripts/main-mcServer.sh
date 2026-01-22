@@ -443,7 +443,7 @@ Wants=network-online.target
 [Service]
 User=${MC_USER}
 WorkingDirectory=${SERVER_DIR}
-ExecStart=${SERVER_DIR}/start
+ExecStart=/usr/bin/screen -DmS ${MC_SERVICE_NAME} ${SERVER_DIR}/start
 StandardInput=null
 
 [Install]
