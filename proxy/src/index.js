@@ -135,6 +135,7 @@ function startProxy() {
  */
 function handleConnection(client, serversOnPort) {
   let handshakeData = null;
+  let handshake = null;
   let state = STATE.HANDSHAKE;
   let buffer = Buffer.alloc(0);
   let targetServer = null;
@@ -159,7 +160,7 @@ function handleConnection(client, serversOnPort) {
       const payload = packetBody.subarray(idVar.length);
 
       if (state === STATE.HANDSHAKE && packetID === 0x00) {
-        const handshake = parseHandshake(payload);
+        handshake = parseHandshake(payload);
         if (handshake) {
           handshakeData = packet;
           // ROUTING LOGIC: Find server by domain
@@ -195,7 +196,10 @@ function handleConnection(client, serversOnPort) {
           : `§7🌸 §c${targetServer.name} is Sleeping... §7Join to Wake up!`;
         
         const response = {
-          version: { name: isOnline ? "§aOnline" : "§cOffline", protocol: PROTOCOL_VERSION },
+          version: { 
+            name: isOnline ? "§a1.21.x Online" : "§cOffline", 
+            protocol: handshake.protocolVersion 
+          },
           players: { max: 100, online: 0 },
           description: { text: motd },
           favicon: serverIconBase64 || undefined
