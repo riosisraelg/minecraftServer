@@ -50,17 +50,31 @@ function startProxy() {
     process.exit(1);
   }
 
+  // Registry for shared services per EC2 instance (prevents race conditions on shutdown)
+  const instanceServices = {}; // Map: instanceId -> { statusCache, connectionManager }
+
   // Group servers by port
   const portsMap = {};
   config.servers.forEach(serverCfg => {
     const port = serverCfg.proxy_port;
     if (!portsMap[port]) portsMap[port] = [];
     
-    // Initialize services for this specific server
-    serverCfg.services = {
-      statusCache: createStatusCache(serverCfg.instanceId),
-      connectionManager: createConnectionManager(serverCfg.instanceId, config.autoShutdown)
-    };
+    // CLEANUP: Ensure instanceId is trimmed to avoid matching errors
+    serverCfg.instanceId = serverCfg.instanceId.trim();
+
+    // SERVICE SHARING: Check if we already have services for this EC2 Instance
+    if (!instanceServices[serverCfg.instanceId]) {
+      console.log(`[Init] Creating NEW services for EC2 Instance: ${serverCfg.instanceId}`);
+      instanceServices[serverCfg.instanceId] = {
+        statusCache: createStatusCache(serverCfg.instanceId),
+        connectionManager: createConnectionManager(serverCfg.instanceId, config.autoShutdown)
+      };
+    } else {
+      console.log(`[Init] ♻️  Reusing SHARED services for EC2 Instance: ${serverCfg.instanceId} (Multiple servers on same machine)`);
+    }
+    
+    // Assign the (potentially shared) services to this server config
+    serverCfg.services = instanceServices[serverCfg.instanceId];
     
     portsMap[port].push(serverCfg);
   });

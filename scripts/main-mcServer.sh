@@ -439,11 +439,14 @@ EOF
 [Unit]
 Description=${MC_TYPE^} Minecraft Server
 Wants=network-online.target
+After=network-online.target
 
 [Service]
 User=${MC_USER}
 WorkingDirectory=${SERVER_DIR}
 ExecStart=/usr/bin/screen -DmS ${MC_SERVICE_NAME} ${SERVER_DIR}/start
+ExecStop=/usr/bin/screen -p 0 -S ${MC_SERVICE_NAME} -X eval 'stuff "stop"\\015'
+ExecStop=/bin/sleep 5
 StandardInput=null
 
 [Install]
