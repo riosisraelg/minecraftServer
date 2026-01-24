@@ -16,6 +16,8 @@ const {
 const { createStatusCache } = require("./utils/status-cache");
 const { createConnectionManager } = require("./utils/connection-manager");
 
+const { createUdpProxy } = require("./utils/udp-proxy");
+
 const PROTOCOL_VERSION = 767;
 
 // Load server icon
@@ -89,21 +91,37 @@ function startProxy() {
     });
 
     server.listen(port, "0.0.0.0", () => {
-      console.log(`✓ Port ${port} is active (Supporting: ${serversOnPort.map(s => s.name).join(", ")})`);
+      console.log(`✓ [TCP] Port ${port} is active (Supporting: ${serversOnPort.map(s => s.name).join(", ")})`);
+    });
+    
+    // Initialize UDP Proxies for any server that needs it
+    serversOnPort.forEach(srv => {
+        if (srv.bedrock_port) {
+            try {
+                const udp = createUdpProxy(srv, srv.services.statusCache, srv.services.connectionManager);
+                activeListeners.push({ server: udp, type: 'udp' }); // Track for shutdown
+            } catch (err) {
+                console.error(`❌ Failed to start UDP Proxy for ${srv.name}: ${err.message}`);
+            }
+        }
     });
 
-    activeListeners.push({ server, serversOnPort });
+    activeListeners.push({ server, serversOnPort, type: 'tcp' });
   });
 
   // Graceful shutdown
   const shutdown = (signal) => {
     console.log(`\n${signal} received. Shutting down...`);
     activeListeners.forEach(ln => {
-      ln.serversOnPort.forEach(s => {
-        s.services.statusCache.stop();
-        s.services.connectionManager.stop();
-      });
-      ln.server.close();
+      if (ln.type === 'tcp') {
+          ln.serversOnPort.forEach(s => {
+            s.services.statusCache.stop();
+            s.services.connectionManager.stop();
+          });
+          ln.server.close();
+      } else if (ln.type === 'udp') {
+          ln.server.stop(); // Our UDP class has stop()
+      }
     });
     setTimeout(() => process.exit(0), 1000);
   };
