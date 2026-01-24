@@ -1,12 +1,5 @@
 /**
- * Minecraft Proxy Server
- *
- * Smart proxy that:
- * - Shows custom MOTD in server list
- * - Shows custom server icon (favicon)
- * - Auto-starts backend EC2 when player joins
- * - Auto-stops backend EC2 when no players for X minutes
- * - Proxies traffic transparently when backend is running
+ * Smart Multi-Server Minecraft Proxy (Domain-Aware)
  */
 
 const net = require("net");
@@ -20,49 +13,23 @@ const {
   createPacket,
   parseHandshake,
 } = require("./utils/minecraft-protocol");
-const { initStatusCache } = require("./utils/status-cache");
-const { initConnectionManager } = require("./utils/connection-manager");
+const { createStatusCache } = require("./utils/status-cache");
+const { createConnectionManager } = require("./utils/connection-manager");
 
-// Configuration
-const PROXY_PORT = config.proxy_port || 25599;
-const BACKEND = config.backend.fabric;
-const PROTOCOL_VERSION = 767; // 1.21.1
+const PROTOCOL_VERSION = 767;
 
-// Load server icon (must be 64x64 PNG)
+// Load server icon
 let serverIconBase64 = null;
 const iconPath = path.join(__dirname, "../../assets/branding/server-icon.png");
 try {
   if (fs.existsSync(iconPath)) {
     const iconBuffer = fs.readFileSync(iconPath);
     serverIconBase64 = `data:image/png;base64,${iconBuffer.toString("base64")}`;
-    console.log("✓ Server icon loaded successfully");
-  } else {
-    console.log("⚠ No server-icon.png found at:", iconPath);
   }
 } catch (err) {
   console.error("⚠ Error loading server icon:", err.message);
 }
 
-// Initialize status cache
-const statusCache = initStatusCache(BACKEND.instanceId);
-
-// Initialize connection manager for auto-shutdown
-const connectionManager = initConnectionManager(
-  BACKEND.instanceId,
-  config.autoShutdown,
-);
-
-console.log("=".repeat(50));
-console.log("🌸 CherryFrost MC Proxy Server Starting...");
-console.log("=".repeat(50));
-console.log("Config:", JSON.stringify(config, null, 2));
-console.log(`Proxy Port: ${PROXY_PORT}`);
-console.log(`Backend: ${BACKEND.host}:${BACKEND.port}`);
-console.log(`Instance ID: ${BACKEND.instanceId}`);
-console.log(`Server Icon: ${serverIconBase64 ? "Loaded" : "Not found"}`);
-console.log("=".repeat(50));
-
-// Connection states
 const STATE = {
   HANDSHAKE: 0,
   WAIT_STATUS_REQUEST: 2,
@@ -71,286 +38,182 @@ const STATE = {
 };
 
 /**
- * Build server status response for server list.
+ * Main function to start all proxy listeners
  */
-function buildStatusResponse() {
-  const isOnline = statusCache.isRunning();
-  const statusText = isOnline ? "§aOnline" : "§cOffline";
-  const motd = isOnline
-    ? `${config.motd.line1}\n${config.motd.line2}`
-    : "§7🌸 §cSleeping... §7Join to Wake up!";
+function startProxy() {
+  console.log("=".repeat(50));
+  console.log("🌸 CherryFrost Smart Proxy Starting...");
+  console.log("=".repeat(50));
 
-  const response = {
-    version: { name: statusText, protocol: PROTOCOL_VERSION },
-    players: { max: 100, online: 0 },
-    description: { text: motd },
-  };
-
-  // Add favicon if available
-  if (serverIconBase64) {
-    response.favicon = serverIconBase64;
+  if (!config.servers || !Array.isArray(config.servers)) {
+    console.error("❌ No servers defined in config.json!");
+    process.exit(1);
   }
 
-  return response;
+  // Group servers by port
+  const portsMap = {};
+  config.servers.forEach(serverCfg => {
+    const port = serverCfg.proxy_port;
+    if (!portsMap[port]) portsMap[port] = [];
+    
+    // Initialize services for this specific server
+    serverCfg.services = {
+      statusCache: createStatusCache(serverCfg.instanceId),
+      connectionManager: createConnectionManager(serverCfg.instanceId, config.autoShutdown)
+    };
+    
+    portsMap[port].push(serverCfg);
+  });
+
+  const activeListeners = [];
+
+  // Create one listener per unique port
+  Object.keys(portsMap).forEach(port => {
+    const serversOnPort = portsMap[port];
+    const server = net.createServer((client) => {
+      handleConnection(client, serversOnPort);
+    });
+
+    server.listen(port, "0.0.0.0", () => {
+      console.log(`✓ Port ${port} is active (Supporting: ${serversOnPort.map(s => s.name).join(", ")})`);
+    });
+
+    activeListeners.push({ server, serversOnPort });
+  });
+
+  // Graceful shutdown
+  const shutdown = (signal) => {
+    console.log(`\n${signal} received. Shutting down...`);
+    activeListeners.forEach(ln => {
+      ln.serversOnPort.forEach(s => {
+        s.services.statusCache.stop();
+        s.services.connectionManager.stop();
+      });
+      ln.server.close();
+    });
+    setTimeout(() => process.exit(0), 1000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 /**
- * Build disconnect reason for login phase.
- * This must be a JSON Chat component.
+ * Handle connection and route based on domain
  */
-function buildDisconnectReason(message) {
-  return JSON.stringify({ text: message });
-}
-
-/**
- * Send a disconnect packet during login phase.
- * Packet ID 0x00 = Login Disconnect
- */
-function sendLoginDisconnect(client, message) {
-  const reason = buildDisconnectReason(message);
-  const packet = createPacket(0x00, writeString(reason));
-  client.write(packet);
-  client.end();
-}
-
-/**
- * Handle a client connection.
- */
-function handleConnection(client) {
-  const clientAddr = client.remoteAddress || "unknown";
-  console.log(
-    `[${new Date().toISOString()}] New connection from ${clientAddr}`,
-  );
-
+function handleConnection(client, serversOnPort) {
   let handshakeData = null;
   let state = STATE.HANDSHAKE;
   let buffer = Buffer.alloc(0);
-
-  client.on("error", (err) => {
-    console.log(`[${clientAddr}] Connection error: ${err.message}`);
-  });
+  let targetServer = null;
 
   const onData = (chunk) => {
     buffer = Buffer.concat([buffer, chunk]);
-
-    // Process packets in buffer
+    
     while (true) {
       const varInt = readVarInt(buffer);
-      if (!varInt) break; // Need more data for length
-
+      if (!varInt) break;
       const packetLen = varInt.value;
       const prefixLen = varInt.length;
       const fullLen = prefixLen + packetLen;
+      if (buffer.length < fullLen) break;
 
-      if (buffer.length < fullLen) break; // Need more data for body
-
-      // Extract packet data
       const packet = buffer.subarray(0, fullLen);
-      const packetBody = buffer.subarray(prefixLen, fullLen); // Fixed: body is within packet bounds
-
+      const packetBody = buffer.subarray(prefixLen, fullLen);
       const idVar = readVarInt(packetBody);
-      if (!idVar) {
-        console.log(`[${clientAddr}] Invalid packet ID`);
-        buffer = buffer.subarray(fullLen);
-        continue;
-      }
+      if (!idVar) { buffer = buffer.subarray(fullLen); continue; }
 
       const packetID = idVar.value;
       const payload = packetBody.subarray(idVar.length);
 
-      // State machine
       if (state === STATE.HANDSHAKE && packetID === 0x00) {
-        // Handshake packet
         const handshake = parseHandshake(payload);
         if (handshake) {
-          console.log(
-            `[${clientAddr}] Handshake: protocol=${handshake.protocolVersion}, nextState=${handshake.nextState}`,
-          );
           handshakeData = packet;
-          state =
-            handshake.nextState === 1
-              ? STATE.WAIT_STATUS_REQUEST
-              : STATE.WAIT_LOGIN;
-        } else {
-          console.log(`[${clientAddr}] Failed to parse handshake`);
+          // ROUTING LOGIC: Find server by domain
+          // Remove the port if it comes in the serverAddress (e.g. domain.com:25565 -> domain.com)
+          const cleanAddress = handshake.serverAddress.split('\0')[0].split(':')[0].toLowerCase();
+          
+          targetServer = serversOnPort.find(s => s.domain.toLowerCase() === cleanAddress) || serversOnPort[0];
+          
+          state = handshake.nextState === 1 ? STATE.WAIT_STATUS_REQUEST : STATE.WAIT_LOGIN;
         }
         buffer = buffer.subarray(fullLen);
       } else if (state === STATE.WAIT_STATUS_REQUEST && packetID === 0x00) {
-        // Status Request -> Send response
-        console.log(
-          `[${clientAddr}] Status request, server status: ${statusCache.getStatus()}`,
-        );
-        const response = buildStatusResponse();
+        // Status Request
+        const { statusCache } = targetServer.services;
+        const isOnline = statusCache.isRunning();
+        const motd = isOnline 
+          ? `${targetServer.motd.line1}\n${targetServer.motd.line2}`
+          : `§7🌸 §c${targetServer.name} is Sleeping... §7Join to Wake up!`;
+        
+        const response = {
+          version: { name: isOnline ? "§aOnline" : "§cOffline", protocol: PROTOCOL_VERSION },
+          players: { max: 100, online: 0 },
+          description: { text: motd },
+          favicon: serverIconBase64 || undefined
+        };
         client.write(createPacket(0x00, writeString(JSON.stringify(response))));
         state = STATE.WAIT_PING;
         buffer = buffer.subarray(fullLen);
       } else if (state === STATE.WAIT_PING && packetID === 0x01) {
-        // Ping -> Pong
-        console.log(`[${clientAddr}] Ping/Pong`);
         client.write(createPacket(0x01, payload));
         client.end();
         return;
       } else if (state === STATE.WAIT_LOGIN && packetID === 0x00) {
-        // Login Start -> Check status and proxy or wake
-        const currentStatus = statusCache.getStatus();
-        console.log(
-          `[${clientAddr}] Login attempt, backend status: ${currentStatus}`,
-        );
-
+        const { statusCache, connectionManager } = targetServer.services;
+        
         if (!statusCache.isRunning()) {
           if (statusCache.isStopped()) {
-            console.log(`[${clientAddr}] Backend stopped, starting...`);
-            startServer(BACKEND.instanceId);
-            connectionManager.markServerStarted(); // Mark for auto-shutdown eligibility
-            sendLoginDisconnect(
-              client,
-              "§dCherry§bFrost\n\n§eServer is waking up! 😴\n\n§7Please wait §f30-60 seconds§7...\n§7Then join again!",
-            );
+            console.log(`[${targetServer.name}] Wake up request from ${handshakeData ? parseHandshake(handshakeData.subarray(readVarInt(handshakeData).length + 1)).serverAddress : 'unknown'}`);
+            startServer(targetServer.instanceId);
+            connectionManager.markServerStarted();
+            sendLoginDisconnect(client, `§dCherry§bFrost\n\n§e${targetServer.name} is waking up! 😴\n\n§7Wait 60s and try again.`);
           } else {
-            console.log(
-              `[${clientAddr}] Backend in transitional state: ${currentStatus}`,
-            );
-            sendLoginDisconnect(
-              client,
-              `§dCherry§bFrost\n\n§eServer status: §f${currentStatus}\n\n§7Please wait a moment and try again.`,
-            );
+            sendLoginDisconnect(client, `§dCherry§bFrost\n\n§eStatus: §f${statusCache.getStatus()}\n\n§7Try again soon.`);
           }
           return;
         }
 
-        // Server running -> Pipe to backend
-        console.log(
-          `[${clientAddr}] Backend running, connecting to ${BACKEND.host}:${BACKEND.port}...`,
-        );
+        // Pipe to backend
         client.removeListener("data", onData);
-
-        const backend = net.createConnection({
-          host: BACKEND.host,
-          port: BACKEND.port,
-          timeout: 10000,
-        });
+        const backend = net.createConnection({ host: targetServer.host, port: targetServer.port, timeout: 10000 });
 
         backend.on("connect", () => {
-          console.log(
-            `[${clientAddr}] Connected to backend, piping traffic...`,
-          );
-
-          // Track this connection for auto-shutdown
           connectionManager.addConnection();
-
-          // Send saved handshake
           backend.write(handshakeData);
-
-          // Send login start packet
           backend.write(packet);
-
-          // Send any leftover data
           const leftover = buffer.subarray(fullLen);
-          if (leftover.length > 0) {
-            console.log(
-              `[${clientAddr}] Sending ${leftover.length} leftover bytes`,
-            );
-            backend.write(leftover);
-          }
-
-          // Pipe bidirectionally
+          if (leftover.length > 0) backend.write(leftover);
           client.pipe(backend);
           backend.pipe(client);
         });
 
-        backend.on("timeout", () => {
-          console.log(`[${clientAddr}] Backend connection timeout`);
-          sendLoginDisconnect(
-            client,
-            "§cConnection to server timed out.\n§7Please try again.",
-          );
-          backend.destroy();
-        });
-
         backend.on("error", (err) => {
-          console.error(`[${clientAddr}] Backend error: ${err.message}`);
-          // Don't try to send disconnect if client already disconnected
-          if (!client.destroyed) {
-            sendLoginDisconnect(
-              client,
-              `§cCannot connect to server.\n§7Error: ${err.message}`,
-            );
-          }
+          if (!client.destroyed) sendLoginDisconnect(client, `§cTarget Server Error: ${err.message}`);
         });
 
         backend.on("close", () => {
-          console.log(`[${clientAddr}] Backend connection closed`);
-          connectionManager.removeConnection(); // Track disconnection
+          connectionManager.removeConnection();
           if (!client.destroyed) client.end();
         });
 
-        client.on("close", () => {
-          console.log(`[${clientAddr}] Client connection closed`);
-          if (!backend.destroyed) backend.end();
-        });
-
+        client.on("close", () => { if (!backend.destroyed) backend.end(); });
         return;
       } else {
-        // Unknown packet for current state
-        console.log(
-          `[${clientAddr}] Unexpected packet ID ${packetID} in state ${state}`,
-        );
         buffer = buffer.subarray(fullLen);
       }
     }
   };
 
   client.on("data", onData);
-
-  client.on("close", () => {
-    console.log(`[${clientAddr}] Connection ended`);
-  });
 }
 
-// Create server
-const server = net.createServer(handleConnection);
+function sendLoginDisconnect(client, message) {
+  const reason = JSON.stringify({ text: message });
+  const packet = createPacket(0x00, writeString(reason));
+  client.write(packet);
+  client.end();
+}
 
-server.listen(PROXY_PORT, "0.0.0.0", () => {
-  console.log(`\n✓ Proxy successfully started on port ${PROXY_PORT}`);
-  console.log(`  Connect using: your-server-ip:${PROXY_PORT}\n`);
-});
-
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`\n❌ ERROR: Port ${PROXY_PORT} is already in use!`);
-    console.error("To fix this, run: ./manage-proxy.sh cleanup");
-    process.exit(1);
-  } else {
-    console.error("Server error:", err);
-    process.exit(1);
-  }
-});
-
-// Graceful shutdown
-const shutdown = (signal) => {
-  console.log(`\n${signal} received. Shutting down gracefully...`);
-  if (statusCache && typeof statusCache.stop === "function") {
-    statusCache.stop();
-  }
-  if (connectionManager && typeof connectionManager.stop === "function") {
-    connectionManager.stop();
-  }
-  server.close(() => {
-    console.log("✓ Server closed");
-    process.exit(0);
-  });
-  setTimeout(() => {
-    console.error("Forced shutdown after timeout");
-    process.exit(1);
-  }, 5000);
-};
-
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-  shutdown("UNCAUGHT_EXCEPTION");
-});
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-});
+startProxy();

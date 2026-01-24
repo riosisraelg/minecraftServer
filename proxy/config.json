@@ -1,20 +1,34 @@
 {
   "project": "mc-server",
   "region": "mx-central-1",
-  "proxy_port": 25599,
-  "backend": {
-    "fabric": {
-      "instanceId": "",
-      "host": "",
-      "port": 25565
+  "servers": [
+    {
+      "name": "fabric-1.21.1",
+      "domain": "fabric-1.21.1-survival.mcserver01.xyz",
+      "proxy_port": 25599,
+      "instanceId": "i-PON_AQUI_ID_AWS_1",
+      "host": "IP_PRIVADA_1",
+      "port": 25565,
+      "motd": {
+        "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
+        "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
+      }
+    },
+    {
+      "name": "papermc-1.21.11",
+      "domain": "papermc-1.21.11-survival.mcserver01.xyz",
+      "proxy_port": 25599,
+      "instanceId": "i-PON_AQUI_ID_AWS_2",
+      "host": "IP_PRIVADA_2",
+      "port": 25565,
+      "motd": {
+        "line1": "§dCherry§bFrost §5MC §f- §e§lVANILLA SURVIVAL",
+        "line2": "§bExperiencia Clásica§r §7- §fVersión §a1.21.11 §fPaper"
+      }
     }
-  },
-  "motd": {
-    "line1": "§dCherry§bFrost §5MC §f- §e§lMODDED SURVIVAL",
-    "line2": "§6§nModpack en Modrinth§r §7- §fVersión §a1.21.1 §fFabric"
-  },
+  ],
   "autoShutdown": {
     "enabled": true,
-    "idleTimeoutMinutes": 5
+    "idleTimeoutMinutes": 10
   }
 }

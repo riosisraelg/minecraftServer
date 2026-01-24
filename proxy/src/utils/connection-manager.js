@@ -137,32 +137,17 @@ class ConnectionManager {
     }
 }
 
-// Singleton instance
-let instance = null;
-
 /**
- * Initialize the connection manager singleton.
+ * Create a new connection manager instance.
  * @param {string} instanceId - EC2 instance ID
  * @param {object} config - Auto-shutdown configuration
  * @returns {ConnectionManager}
  */
-function initConnectionManager(instanceId, config = {}) {
-    if (!instance) {
-        instance = new ConnectionManager(instanceId, config);
-    }
-    return instance;
-}
-
-/**
- * Get the connection manager singleton.
- * @returns {ConnectionManager|null}
- */
-function getConnectionManager() {
-    return instance;
+function createConnectionManager(instanceId, config = {}) {
+    return new ConnectionManager(instanceId, config);
 }
 
 module.exports = {
     ConnectionManager,
-    initConnectionManager,
-    getConnectionManager
+    createConnectionManager
 };
