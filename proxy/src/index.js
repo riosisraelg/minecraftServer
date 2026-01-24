@@ -146,9 +146,24 @@ function handleConnection(client, serversOnPort) {
           handshakeData = packet;
           // ROUTING LOGIC: Find server by domain
           // Remove the port if it comes in the serverAddress (e.g. domain.com:25565 -> domain.com)
-          const cleanAddress = handshake.serverAddress.split('\0')[0].split(':')[0].toLowerCase();
+          // Also remove trailing dot if present (FQDN)
+          let cleanAddress = handshake.serverAddress.split('\0')[0].split(':')[0].toLowerCase();
+          if (cleanAddress.endsWith('.')) {
+              cleanAddress = cleanAddress.slice(0, -1);
+          }
           
-          targetServer = serversOnPort.find(s => s.domain.toLowerCase() === cleanAddress) || serversOnPort[0];
+          console.log(`[Proxy] 🔍 Incoming Connection Request to domain: '${cleanAddress}'`);
+          console.log(`[Proxy]    (Raw Address from packet: '${handshake.serverAddress}')`);
+
+          targetServer = serversOnPort.find(s => s.domain.toLowerCase() === cleanAddress);
+          
+          if (targetServer) {
+             console.log(`[Proxy] ✅ Match found! Routing to: ${targetServer.name}`);
+          } else {
+             targetServer = serversOnPort[0];
+             console.log(`[Proxy] ⚠️  No match found. Fallback to default: ${targetServer.name}`);
+             console.log(`[Proxy]    (Available domains: ${serversOnPort.map(s => s.domain).join(', ')})`);
+          }
           
           state = handshake.nextState === 1 ? STATE.WAIT_STATUS_REQUEST : STATE.WAIT_LOGIN;
         }
