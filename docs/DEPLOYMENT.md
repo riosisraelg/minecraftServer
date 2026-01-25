@@ -86,13 +86,17 @@ cd /home/ec2-user
 git clone https://github.com/riosisraelg/minecraftServer.git
 cd minecraftServer
 
-# Run the setup wizard
-./scripts/setupMain-mcServer.sh
+# Run the environment setup
+./scripts/setup-env.sh
+
+# Run the server manager
+./scripts/mc-manager.sh
 ```
 
 Follow the interactive wizard to:
-1. Select server type (Vanilla/Forge/Fabric)
-2. Select game mode (Survival/Creative/Hardcore)
+1. Select "Create new server"
+2. Select server type (Vanilla/Forge/Fabric)
+3. Select game mode (Survival/Creative/Hardcore)
 3. Create the server instance
 
 ### 4️⃣ Start the Minecraft Server
@@ -158,8 +162,8 @@ ssh -J ec2-user@<PROXY-PUBLIC-IP> ec2-user@<MAIN-PRIVATE-IP>
 cd /home/ec2-user/minecraftServer
 git pull origin main
 
-# Re-run setup wizard if needed
-./scripts/setupMain-mcServer.sh
+# Manage servers
+./scripts/mc-manager.sh
 ```
 
 ## 🐛 Troubleshooting

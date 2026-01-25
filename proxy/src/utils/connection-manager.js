@@ -35,7 +35,7 @@ class ConnectionManager {
      */
     addConnection() {
         this.activeConnections++;
-        console.log(`[ConnectionManager] Connection added. Active: ${this.activeConnections}`);
+        // console.log(`[ConnectionManager] Connection added. Active: ${this.activeConnections}`);
 
         // Cancel any pending shutdown
         this.cancelIdleTimer();
@@ -46,7 +46,7 @@ class ConnectionManager {
      */
     removeConnection() {
         this.activeConnections = Math.max(0, this.activeConnections - 1);
-        console.log(`[ConnectionManager] Connection removed. Active: ${this.activeConnections}`);
+        // console.log(`[ConnectionManager] Connection removed. Active: ${this.activeConnections}`);
 
         // Start idle timer if no more connections
         if (this.activeConnections === 0) {

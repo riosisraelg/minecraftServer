@@ -29,67 +29,33 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-echo -e "${BLUE}Step 1/6: Installing Node.js dependencies...${NC}"
+# Step 2: Install Node.js dependencies
+echo -e "${BLUE}Step 1/3: Installing Node.js dependencies...${NC}"
 npm install
 echo -e "${GREEN}✓ Dependencies installed${NC}\n"
 
-# Step 2: Install PM2 globally
-echo -e "${BLUE}Step 2/6: Installing PM2 process manager...${NC}"
-if ! command -v pm2 &> /dev/null; then
-    sudo npm install -g pm2
-    echo -e "${GREEN}✓ PM2 installed${NC}\n"
-else
-    echo -e "${GREEN}✓ PM2 already installed${NC}\n"
-fi
+# Step 3: Ensure scripts are executable
+chmod +x manage-proxy.sh
+chmod +x QUICKSTART.sh
 
-# Step 3: Create logs directory
-echo -e "${BLUE}Step 3/6: Creating logs directory...${NC}"
-mkdir -p logs
-echo -e "${GREEN}✓ Logs directory created${NC}\n"
+# Step 4: Use manage-proxy to start the service
+echo -e "${BLUE}Step 2/3: Starting Proxy via manage-proxy.sh...${NC}"
+./manage-proxy.sh start
 
-# Step 4: Stop any existing proxy processes
-echo -e "${BLUE}Step 4/6: Cleaning up existing processes...${NC}"
-pm2 stop minecraft-proxy 2>/dev/null || true
-pm2 delete minecraft-proxy 2>/dev/null || true
-pm2 stop proxy 2>/dev/null || true
-pm2 delete proxy 2>/dev/null || true
+# Step 5: Setup startup
+echo -e "${BLUE}Step 3/3: Configuring auto-start...${NC}"
+./manage-proxy.sh startup
 
-# Kill any process using port 25599
-PIDS=$(sudo lsof -t -i:25599 2>/dev/null || true)
-if [ -n "$PIDS" ]; then
-    echo -e "${YELLOW}Killing processes on port 25599...${NC}"
-    sudo kill -9 $PIDS
-    sleep 1
-fi
-echo -e "${GREEN}✓ Cleanup complete${NC}\n"
-
-# Step 5: Start the proxy
-echo -e "${BLUE}Step 5/6: Starting Minecraft Proxy...${NC}"
-pm2 start ecosystem.config.js
-pm2 save
-echo -e "${GREEN}✓ Proxy started successfully${NC}\n"
-
-# Step 6: Setup PM2 to start on boot
-echo -e "${BLUE}Step 6/6: Configuring auto-start on boot...${NC}"
-echo -e "${YELLOW}Note: You may need to run the following command manually:${NC}"
-pm2 startup
-echo -e "${GREEN}✓ Setup complete${NC}\n"
-
-# Show status
+# Show Final Status
+echo ""
 echo -e "${PURPLE}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${PURPLE}║  ✅ Deployment Complete!                    ║${NC}"
 echo -e "${PURPLE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}Proxy Status:${NC}"
-pm2 list
-
+echo -e "${GREEN}🎮 Your Minecraft proxy is now running!${NC}"
 echo ""
 echo -e "${BLUE}Useful Commands:${NC}"
-echo "  • View logs:       pm2 logs minecraft-proxy"
+echo "  • View logs:       ./manage-proxy.sh logs"
 echo "  • Restart proxy:   ./manage-proxy.sh restart"
-echo "  • Stop proxy:      ./manage-proxy.sh stop"
 echo "  • Check status:    ./manage-proxy.sh status"
-echo ""
-echo -e "${GREEN}🎮 Your Minecraft proxy is now running!${NC}"
-echo -e "${YELLOW}Connect to your server at: ${PURPLE}<EC2-PUBLIC-IP>:25599${NC}"
 echo ""

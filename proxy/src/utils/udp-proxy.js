@@ -66,6 +66,7 @@ class UdpProxy {
                 }
                 
                 startServer(this.instanceId);
+                this.statusCache.setFastPolling(120000); // Poll fast for 2 minutes
                 this.connectionManager.markServerStarted();
                 
                 // Optional: We could send a fake RakNet "Pong" here with "Server Starting..."
@@ -75,16 +76,15 @@ class UdpProxy {
         }
 
         // 2. Forward to Backend
-        let backendSocket = this.getBackendSocket(clientKey, rinfo);
-        
+        // We get or create the session here.
+        // If it's a NEW session, getBackendSocket (or wrapper) should handle addConnection logic
         try {
+            let backendSocket = this.getBackendSocket(clientKey, rinfo);
+            
             backendSocket.send(msg, this.backendPort, this.backendHost, (err) => {
                if(err) console.error(`[UDP-${this.serverName}] Send error:`, err);
             });
-            // Mark connection active
-            this.connectionManager.addConnection(); 
-            // Note: This logic is tricky for UDP as simple ping counts as connection.
-            // Ideally ConnectionManager should debounce this.
+            
         } catch (err) {
             // Socket might be closed
             this.clientMap.delete(clientKey);
@@ -122,6 +122,10 @@ class UdpProxy {
         };
 
         this.clientMap.set(clientKey, session);
+        
+        // Correct place to track connection: New Session Created
+        this.connectionManager.addConnection();
+        
         return socket;
     }
 

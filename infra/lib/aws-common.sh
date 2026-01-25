@@ -12,44 +12,22 @@ CONFIG_FILE="${CONFIG_FILE:-infra/awsConfig.json}"
 
 # ===== UTILITIES =====
 
-# Print functions with consistent formatting
 print_header() {
     echo "========================================="
     echo "   $1"
     echo "========================================="
 }
 
-print_step() {
-    echo "SETUP: $1"
-}
-
-print_cleanup() {
-    echo "CLEANUP: $1"
-}
-
-print_success() {
-    echo "✅ $1"
-}
-
-print_warning() {
-    echo "⚠️  $1"
-}
-
-print_error() {
-    echo "❌ $1"
-}
-
-print_waiting() {
-    echo "⏳ $1"
-}
-
-print_info() {
-    echo "ℹ️  $1"
-}
+print_step() { echo "SETUP: $1"; }
+print_cleanup() { echo "CLEANUP: $1"; }
+print_success() { echo "✅ $1"; }
+print_warning() { echo "⚠️  $1"; }
+print_error() { echo "❌ $1"; }
+print_waiting() { echo "⏳ $1"; }
+print_info() { echo "ℹ️  $1"; }
 
 # ===== CONFIG MANAGEMENT =====
 
-# Check that config file exists
 validate_config() {
     if [ ! -f "$CONFIG_FILE" ]; then
         print_error "Config file not found at $CONFIG_FILE"
@@ -57,14 +35,10 @@ validate_config() {
     fi
 }
 
-# Read a value from the config file
-# Usage: read_config ".project" or read_config ".resources.vpc_id"
 read_config() {
     jq -r "$1" "$CONFIG_FILE"
 }
 
-# Update a value in the resources section of config
-# Usage: update_config "vpc_id" "vpc-12345"
 update_config() {
     local key="$1"
     local value="$2"
@@ -72,25 +46,16 @@ update_config() {
     jq --arg val "$value" ".resources.$key = \$val" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
 }
 
-# Clear a value in resources (set to empty string)
-# Usage: clear_config "vpc_id"
 clear_config() {
     update_config "$1" ""
 }
 
 # ===== DEPENDENCY CHECKS =====
 
-# Check if required tools are installed
 check_dependencies() {
     local missing=()
-    
-    if ! command -v jq &> /dev/null; then
-        missing+=("jq")
-    fi
-    
-    if ! command -v aws &> /dev/null; then
-        missing+=("aws")
-    fi
+    if ! command -v jq &> /dev/null; then missing+=("jq"); fi
+    if ! command -v aws &> /dev/null; then missing+=("aws"); fi
     
     if [ ${#missing[@]} -gt 0 ]; then
         print_error "Missing required tools: ${missing[*]}"
@@ -99,17 +64,33 @@ check_dependencies() {
     fi
 }
 
-# ===== AWS HELPERS =====
+# ===== AWS HELPERS (OPTIMIZED) =====
 
-# Check if a resource ID is valid (not empty or null)
-# Usage: if is_valid_id "$VPC_ID"; then ...
+# Generic function to create an AWS resource with tags and return its ID
+# Usage: aws_create "create-vpc" "vpc" "my-vpc-name" "Vpc.VpcId" --cidr-block 10.0.0.0/16
+aws_create() {
+    local cmd="$1"          # e.g., create-vpc
+    local type="$2"         # e.g., vpc (for tag specification)
+    local name="$3"         # e.g., my-project-vpc
+    local query="$4"        # e.g., Vpc.VpcId
+    shift 4                 # Shift pointer to remaining args
+    
+    # Run the command
+    resource_id=$(aws ec2 "$cmd" \
+        --tag-specifications "ResourceType=$type,Tags=[{Key=Name,Value=$name}]" \
+        --query "$query" \
+        --output text \
+        --region "$REGION" \
+        "$@")
+        
+    echo "$resource_id"
+}
+
 is_valid_id() {
     local id="$1"
     [ -n "$id" ] && [ "$id" != "null" ] && [ "$id" != "None" ]
 }
 
-# Wait for a resource with a spinner
-# Usage: wait_with_message "Waiting for NAT Gateway..." aws ec2 wait nat-gateway-available ...
 wait_with_message() {
     local message="$1"
     shift
@@ -117,8 +98,6 @@ wait_with_message() {
     "$@"
 }
 
-# Tag a resource with Name tag
-# Usage: tag_resource "$RESOURCE_ID" "my-resource-name" "$REGION"
 tag_resource() {
     local resource_id="$1"
     local name="$2"
@@ -126,8 +105,6 @@ tag_resource() {
     aws ec2 create-tags --resources "$resource_id" --tags Key=Name,Value="$name" --region "$region"
 }
 
-# Safely delete a security group (ignore if already deleted)
-# Usage: safe_delete_sg "$SG_ID" "$REGION"
 safe_delete_sg() {
     local sg_id="$1"
     local region="$2"
@@ -136,17 +113,13 @@ safe_delete_sg() {
 
 # ===== LOAD COMMON VARIABLES =====
 
-# Load project variables from config
 load_project_vars() {
     validate_config
-    
     PROJECT=$(read_config ".project")
     REGION=$(read_config ".region")
-    
     export PROJECT REGION
 }
 
-# Load all resource IDs from config
 load_resource_vars() {
     VPC_ID=$(read_config ".resources.vpc_id")
     PUB_SUBNET_ID=$(read_config ".resources.public_subnet_id")
@@ -164,7 +137,6 @@ load_resource_vars() {
     export PROXY_SG_ID MC_SG_ID ALLOCATION_ID PROXY_INSTANCE_ID MC_INSTANCE_ID
 }
 
-# Load infrastructure settings from config
 load_infra_settings() {
     AMI_ID=$(read_config ".ami_id")
     INSTANCE_TYPE_PROXY=$(read_config ".instance_type_proxy")

@@ -3,8 +3,6 @@
  */
 
 const net = require("net");
-const fs = require("fs");
-const path = require("path");
 const config = require("../config.json");
 const { startServer } = require("./aws");
 const {
@@ -15,22 +13,11 @@ const {
 } = require("./utils/minecraft-protocol");
 const { createStatusCache } = require("./utils/status-cache");
 const { createConnectionManager } = require("./utils/connection-manager");
-
 const { createUdpProxy } = require("./utils/udp-proxy");
+const { loadServerIcon } = require("./utils/assets");
 
 const PROTOCOL_VERSION = 767;
-
-// Load server icon
-let serverIconBase64 = null;
-const iconPath = path.join(__dirname, "../../assets/branding/server-icon.png");
-try {
-  if (fs.existsSync(iconPath)) {
-    const iconBuffer = fs.readFileSync(iconPath);
-    serverIconBase64 = `data:image/png;base64,${iconBuffer.toString("base64")}`;
-  }
-} catch (err) {
-  console.error("⚠ Error loading server icon:", err.message);
-}
+const serverIconBase64 = loadServerIcon();
 
 const STATE = {
   HANDSHAKE: 0,
@@ -52,8 +39,8 @@ function startProxy() {
     process.exit(1);
   }
 
-  // Registry for shared services per EC2 instance (prevents race conditions on shutdown)
-  const instanceServices = {}; // Map: instanceId -> { statusCache, connectionManager }
+  // Registry for shared services per EC2 instance
+  const instanceServices = {}; 
 
   // Group servers by port
   const portsMap = {};
@@ -61,10 +48,8 @@ function startProxy() {
     const port = serverCfg.proxy_port;
     if (!portsMap[port]) portsMap[port] = [];
     
-    // CLEANUP: Ensure instanceId is trimmed to avoid matching errors
     serverCfg.instanceId = serverCfg.instanceId.trim();
 
-    // SERVICE SHARING: Check if we already have services for this EC2 Instance
     if (!instanceServices[serverCfg.instanceId]) {
       console.log(`[Init] Creating NEW services for EC2 Instance: ${serverCfg.instanceId}`);
       instanceServices[serverCfg.instanceId] = {
@@ -75,15 +60,12 @@ function startProxy() {
       console.log(`[Init] ♻️  Reusing SHARED services for EC2 Instance: ${serverCfg.instanceId} (Multiple servers on same machine)`);
     }
     
-    // Assign the (potentially shared) services to this server config
     serverCfg.services = instanceServices[serverCfg.instanceId];
-    
     portsMap[port].push(serverCfg);
   });
 
   const activeListeners = [];
 
-  // Create one listener per unique port
   Object.keys(portsMap).forEach(port => {
     const serversOnPort = portsMap[port];
     const server = net.createServer((client) => {
@@ -94,12 +76,12 @@ function startProxy() {
       console.log(`✓ [TCP] Port ${port} is active (Supporting: ${serversOnPort.map(s => s.name).join(", ")})`);
     });
     
-    // Initialize UDP Proxies for any server that needs it
+    // Initialize UDP Proxies
     serversOnPort.forEach(srv => {
         if (srv.bedrock_port) {
             try {
                 const udp = createUdpProxy(srv, srv.services.statusCache, srv.services.connectionManager);
-                activeListeners.push({ server: udp, type: 'udp' }); // Track for shutdown
+                activeListeners.push({ server: udp, type: 'udp' });
             } catch (err) {
                 console.error(`❌ Failed to start UDP Proxy for ${srv.name}: ${err.message}`);
             }
@@ -120,7 +102,7 @@ function startProxy() {
           });
           ln.server.close();
       } else if (ln.type === 'udp') {
-          ln.server.stop(); // Our UDP class has stop()
+          ln.server.stop();
       }
     });
     setTimeout(() => process.exit(0), 1000);
@@ -128,6 +110,21 @@ function startProxy() {
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
+}
+
+function normalizeAddress(address) {
+    if (!address) return "";
+    // Remove null bytes and take first part if multiple
+    let clean = address.split('\0')[0];
+    // Remove port if present
+    clean = clean.split(':')[0];
+    // Convert to lowercase
+    clean = clean.toLowerCase();
+    // Remove trailing dot (FQDN)
+    if (clean.endsWith('.')) {
+        clean = clean.slice(0, -1);
+    }
+    return clean;
 }
 
 /**
@@ -163,25 +160,18 @@ function handleConnection(client, serversOnPort) {
         handshake = parseHandshake(payload);
         if (handshake) {
           handshakeData = packet;
-          // ROUTING LOGIC: Find server by domain
-          // Remove the port if it comes in the serverAddress (e.g. domain.com:25565 -> domain.com)
-          // Also remove trailing dot if present (FQDN)
-          let cleanAddress = handshake.serverAddress.split('\0')[0].split(':')[0].toLowerCase();
-          if (cleanAddress.endsWith('.')) {
-              cleanAddress = cleanAddress.slice(0, -1);
-          }
           
-          console.log(`[Proxy] 🔍 Incoming Connection Request to domain: '${cleanAddress}'`);
-          console.log(`[Proxy]    (Raw Address from packet: '${handshake.serverAddress}')`);
+          const cleanAddress = normalizeAddress(handshake.serverAddress);
+          
+          console.log(`[Proxy] 🔍 Connection: '${cleanAddress}' (Raw: '${handshake.serverAddress}')`);
 
           targetServer = serversOnPort.find(s => s.domain.toLowerCase() === cleanAddress);
           
           if (targetServer) {
-             console.log(`[Proxy] ✅ Match found! Routing to: ${targetServer.name}`);
+             console.log(`[Proxy] ✅ Routing to: ${targetServer.name}`);
           } else {
              targetServer = serversOnPort[0];
-             console.log(`[Proxy] ⚠️  No match found. Fallback to default: ${targetServer.name}`);
-             console.log(`[Proxy]    (Available domains: ${serversOnPort.map(s => s.domain).join(', ')})`);
+             console.log(`[Proxy] ⚠️  Fallback to: ${targetServer.name}`);
           }
           
           state = handshake.nextState === 1 ? STATE.WAIT_STATUS_REQUEST : STATE.WAIT_LOGIN;
@@ -216,8 +206,9 @@ function handleConnection(client, serversOnPort) {
         
         if (!statusCache.isRunning()) {
           if (statusCache.isStopped()) {
-            console.log(`[${targetServer.name}] Wake up request from ${handshakeData ? parseHandshake(handshakeData.subarray(readVarInt(handshakeData).length + 1)).serverAddress : 'unknown'}`);
+            console.log(`[${targetServer.name}] Wake up request`);
             startServer(targetServer.instanceId);
+            statusCache.setFastPolling(120000); // Poll fast for 2 minutes
             connectionManager.markServerStarted();
             sendLoginDisconnect(client, `§dCherry§bFrost\n\n§e${targetServer.name} is waking up! 😴\n\n§7Wait 60s and try again.`);
           } else {

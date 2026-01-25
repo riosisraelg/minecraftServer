@@ -1,0 +1,28 @@
+{
+  "global": {
+    "gamemode": "survival",
+    "online_mode": false,
+    "seed": "",
+    "memory_max": "2048M",
+    "memory_min": "1024M",
+    "enable_geyser": false
+  },
+  "profiles": {
+    "fabric": {
+      "version": "1.21.1",
+      "loader": "0.16.9",
+      "installer": "1.0.1"
+    },
+    "forge": {
+      "version": "1.20.1-47.1.0"
+    },
+    "vanilla": {
+      "version": "1.21.1",
+      "url": "https://piston-data.mojang.com/v1/objects/59353fb40c36d304f2035d51e7d6e6baa98dc05c/server.jar"
+    },
+    "paper": {
+      "version": "1.21.1"
+    }
+  },
+  "default_type": "paper"
+}

@@ -4,6 +4,35 @@ All notable changes to the Minecraft AWS Infrastructure project.
 
 ---
 
+## [2.6.0] - 2026-01-24
+
+### 🔧 Management Consolidation
+- **Script Cleanup**: Replaced legacy setup and management scripts with `scripts/mc-manager.sh` and related helpers.
+- **Documentation**: Updated `README.MD` and added `docs/manual.md`.
+- **Proxy Enhancements**: Added `proxy/src/utils/assets.js`.
+
+## [2.5.3] - 2026-01-24
+### 🚀 Proxy Improvements
+- **Transparency**: Made proxy transparent with dynamic protocol versioning.
+
+## [2.5.2] - 2026-01-23
+### 🌐 Multi-Protocol Support
+- **UDP Proxy**: Implemented UDP proxy for Bedrock/Geyser integration.
+
+## [2.5.1] - 2026-01-22
+### 🛣️ Routing Enhancements
+- **DNS Handling**: Strip trailing dots from addresses in routing.
+- **Logging**: Detailed logging for connection requests and routing decisions.
+
+## [2.5.0] - 2026-01-21
+### 🛠️ Optimization
+- **Connection Counters**: Shared connection counters for co-located servers.
+- **Systemd**: Improved systemd service reliability.
+
+## [2.4.1] - 2026-01-21
+### 🗺️ Multi-Server Routing
+- **Domain-Based Routing**: Multi-server proxy with per-domain configuration.
+
 ## [2.3.1] - 2026-01-20
 
 ### 🐛 Bug Fixes

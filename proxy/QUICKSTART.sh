@@ -40,7 +40,7 @@ pm2 list                          # List all PM2 processes
 pm2 logs minecraft-proxy          # Live logs
 pm2 logs minecraft-proxy --err    # Error logs only
 pm2 logs minecraft-proxy --lines 50  # Last 50 lines
-sudo lsof -i :25599               # Check what's using port 25599
+sudo lsof -i :25599               # Check what's using port 25599 (default)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🐛 TROUBLESHOOTING

@@ -8,27 +8,31 @@
 const { getServerStatus } = require("../aws");
 
 class StatusCache {
-  constructor(instanceId, pollIntervalMs = 10000) {
+  constructor(instanceId, pollIntervalMs = 30000) {
     this.instanceId = instanceId;
-    this.pollIntervalMs = pollIntervalMs;
+    this.normalPollIntervalMs = pollIntervalMs;
+    this.currentPollIntervalMs = pollIntervalMs;
+    this.fastPollIntervalMs = 2000; // 2 seconds
+    
     this.status = "unknown";
     this.lastUpdated = null;
     this.pollTimer = null;
+    this.fastModeTimer = null;
   }
 
   /**
    * Start polling for status updates.
    */
   start() {
-    // Initial fetch
     this.update();
+    this.startPolling(this.normalPollIntervalMs);
+  }
 
-    // Set up polling interval
-    this.pollTimer = setInterval(() => this.update(), this.pollIntervalMs);
-
-    console.log(
-      `[StatusCache] Started polling for ${this.instanceId} every ${this.pollIntervalMs}ms`,
-    );
+  startPolling(interval) {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.currentPollIntervalMs = interval;
+    this.pollTimer = setInterval(() => this.update(), interval);
+    console.log(`[StatusCache] Polling ${this.instanceId} every ${interval}ms`);
   }
 
   /**
@@ -38,8 +42,33 @@ class StatusCache {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
-      console.log("[StatusCache] Stopped polling");
     }
+    if (this.fastModeTimer) {
+      clearTimeout(this.fastModeTimer);
+      this.fastModeTimer = null;
+    }
+    console.log("[StatusCache] Stopped polling");
+  }
+
+  /**
+   * Enable fast polling for a duration (e.g. while server is starting)
+   * @param {number} durationMs - How long to stay in fast mode
+   */
+  setFastPolling(durationMs = 60000) {
+      if (this.currentPollIntervalMs === this.fastPollIntervalMs) {
+          // Already in fast mode, extend it if needed? 
+          // For simplicity, just let the current fast mode run out or reset it
+          if (this.fastModeTimer) clearTimeout(this.fastModeTimer);
+      } else {
+          console.log(`[StatusCache] 🚀 Switching to FAST polling for ${durationMs/1000}s`);
+          this.startPolling(this.fastPollIntervalMs);
+      }
+
+      this.fastModeTimer = setTimeout(() => {
+          console.log(`[StatusCache] 🐢 Reverting to normal polling`);
+          this.startPolling(this.normalPollIntervalMs);
+          this.fastModeTimer = null;
+      }, durationMs);
   }
 
   /**
@@ -95,7 +124,7 @@ class StatusCache {
  * @param {number} pollIntervalMs - Polling interval in milliseconds
  * @returns {StatusCache}
  */
-function createStatusCache(instanceId, pollIntervalMs = 10000) {
+function createStatusCache(instanceId, pollIntervalMs = 30000) {
   const instance = new StatusCache(instanceId, pollIntervalMs);
   instance.start();
   return instance;

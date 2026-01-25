@@ -30,29 +30,39 @@ check_pm2() {
     fi
 }
 
-kill_port_25599() {
-    echo -e "${YELLOW}Checking for processes on port 25599...${NC}"
+get_proxy_port() {
+    if [ -f "config.json" ]; then
+        node -e "try { console.log(require('./config.json').proxy_port || 25599) } catch(e) { console.log(25599) }"
+    else
+        echo "25599"
+    fi
+}
+
+PROXY_PORT=$(get_proxy_port)
+
+kill_proxy_port() {
+    echo -e "${YELLOW}Checking for processes on port $PROXY_PORT...${NC}"
     
-    # Find processes using port 25599
-    PIDS=$(sudo lsof -t -i:25599 2>/dev/null || true)
+    # Find processes using the proxy port
+    PIDS=$(sudo lsof -t -i:$PROXY_PORT 2>/dev/null || true)
     
     if [ -n "$PIDS" ]; then
-        echo -e "${RED}Found processes using port 25599: $PIDS${NC}"
+        echo -e "${RED}Found processes using port $PROXY_PORT: $PIDS${NC}"
         echo -e "${YELLOW}Killing processes...${NC}"
         sudo kill -9 $PIDS
         sleep 1
         echo -e "${GREEN}✓ Processes killed${NC}"
     else
-        echo -e "${GREEN}✓ Port 25599 is free${NC}"
+        echo -e "${GREEN}✓ Port $PROXY_PORT is free${NC}"
     fi
 }
 
 start_proxy() {
     print_header
-    echo -e "${BLUE}Starting Minecraft Proxy...${NC}"
+    echo -e "${BLUE}Starting Minecraft Proxy on port $PROXY_PORT...${NC}"
     
     check_pm2
-    kill_port_25599
+    kill_proxy_port
     
     # Stop any existing proxy processes
     pm2 stop minecraft-proxy 2>/dev/null || true
@@ -91,7 +101,7 @@ restart_proxy() {
     print_header
     echo -e "${BLUE}Restarting Minecraft Proxy...${NC}"
     
-    kill_port_25599
+    kill_proxy_port
     pm2 restart minecraft-proxy 2>/dev/null || start_proxy
     
     echo -e "${GREEN}✓ Proxy restarted${NC}"
@@ -103,8 +113,8 @@ status_proxy() {
     check_pm2
     pm2 list
     echo ""
-    echo -e "${BLUE}Port 25599 status:${NC}"
-    sudo lsof -i :25599 || echo -e "${GREEN}Port 25599 is free${NC}"
+    echo -e "${BLUE}Port $PROXY_PORT status:${NC}"
+    sudo lsof -i :$PROXY_PORT || echo -e "${GREEN}Port $PROXY_PORT is free${NC}"
 }
 
 logs_proxy() {
@@ -117,8 +127,8 @@ cleanup_all() {
     print_header
     echo -e "${RED}Cleaning up ALL proxy processes...${NC}"
     
-    # Kill all processes on port 25599
-    kill_port_25599
+    # Kill all processes on port $PROXY_PORT
+    kill_proxy_port
     
     # Remove all PM2 processes
     pm2 stop all 2>/dev/null || true
@@ -150,7 +160,7 @@ show_usage() {
     echo "  restart    - Restart the proxy server"
     echo "  status     - Show proxy status and port usage"
     echo "  logs       - Show proxy logs (live)"
-    echo "  cleanup    - Remove all proxy processes and free port 25599"
+    echo "  cleanup    - Remove all proxy processes and free port $PROXY_PORT"
     echo "  startup    - Configure PM2 to start on system boot"
     echo "  help       - Show this help message"
     echo ""
