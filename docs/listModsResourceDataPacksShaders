@@ -1,0 +1,111 @@
+# 🖥️ Client-Side (Visuals, UI, & Performance)
+
+*These mods only need to be on your computer. They handle how the game looks and feels for you.*
+
+* **Advancement Plaques** `[Client]`
+* **AppleSkin** (Food values)
+* **Better Advancements** (UI improvement)
+* **Bobby** `[Client]` (Render distance)
+* **Client Tweaks**
+* **Controlling** `[Client]` (Keybind search)
+* **EnchantmentDescriptions** `[Client]`
+* **EntityCulling** (Performance)
+* **FerriteCore** (Memory usage)
+* **GUI Clock**
+* **Inventory HUD +** `[Client]`
+* **Inventory Profiles Next** `[Client]`
+* **Jade** (Tooltip/WAILA)
+* **Just Enough Effect Descriptions (JEED)**
+* **Just Enough Items (JEI)** (Recipe viewer)
+* **Just Enough Professions (JEP)**
+* **LambDynamicLights** `[Client]`
+* **Litematica** `[Client]` (Schematics)
+* **MiniHUD** `[Client]`
+* **Mod Menu** `[Client]`
+* **Mod Menu Command** **(NEW)** (Allows opening mod menu via commands)
+* **Mouse Tweaks** `[Client]`
+* **Perception** `[Client]` (Visual effects)
+* **SchematicPreview** `[Client]`
+* **Shulker Box Tooltip**
+* **Sodium** `[Client]` (Rendering engine)
+* **Subtle Effects** (Particles/Sound)
+* **Traveler's Titles** `[Client]`
+* **Visual Workbench** (Visual items on table)
+* **WI Zoom** `[Client]`
+* **Xaero's Minimap**
+* **Xaero's World Map**
+* **XaeroPlus** `[Client]`
+
+---
+
+# 🌍 Common / Gameplay (Server & Client)
+
+*These mods add content, items, or change mechanics. They MUST be on the server to work.*
+
+* **Another Furniture**
+* **BetterDays** (Time control)
+* **Cloth Gamerules**
+* **Cobweb**
+* **ElevatorMod**
+* **Elytra Slot**
+* **Essential Commands** (Teleport/Home)
+* **Geophilic** (Biome overhaul)
+* **Inventory Management**
+* **Inventory Totem**
+* **InvView** (Admin tool)
+* **Just Enough Breeding**
+* **Just Hammers**
+* **Kits**
+* **Lithium** (Server optimization)
+* **LuckPerms** **(NEW)** (Permissions management - Vital for servers)
+* **Nature's Compass**
+* **Open Parties and Claims**
+* **Panda's Falling Trees** **(NEW)** (Timber/Tree chopping mod)
+* **Pyrotechnic Elytra**
+* **Server Announce**
+* **Sophisticated Backpacks** **(NEW)** *(Note: You also have Traveler's Backpack installed; you may want to choose just one to avoid redundancy, but both will work.)*
+* **Styled Chat**
+* **Styled Player List**
+* **TrashSlot**
+* **Traveler's Backpack**
+* **Veinminer**
+* **Veinminer Enchantment** **(NEW)**
+* **Wide Mining**
+
+---
+
+# 📚 Libraries & APIs (Dependencies)
+
+*These were mostly missing from the first list but are required for the mods above to function. You generally install these on both Client and Server.*
+
+* **Architectury API** **(NEW)**
+* **Balm** **(NEW)**
+* **Bookshelf**
+* **Cardinal Components API** **(NEW)**
+* **Cloth Config API** **(NEW)**
+* **Collective** **(NEW)**
+* **Fabric API** **(NEW)** (The core library for almost all Fabric mods)
+* **Fabric Language Kotlin** **(NEW)**
+* **Forge Config API Port** **(NEW)**
+* **Fzzy Config** **(NEW)**
+* **GooeyLibs**
+* **Iceberg** **(NEW)**
+* **libIPN**
+* **MaLiLib**
+* **OctoLib**
+* **Pal**
+* **PandaLib** **(NEW)**
+* **Prickle**
+* **Puzzles Lib** **(NEW)**
+* **Searchables** **(NEW)**
+* **Silk (All modules)**
+* **Sophisticated Core** **(NEW)**
+* **SuperMartijn642's Core Lib** **(NEW)**
+* **Text Placeholder API** **(NEW)**
+* **Trinkets**
+* **WhiteNoise**
+* **YUNG's API**
+
+# Shaders
+
+* I Like Vanilla
