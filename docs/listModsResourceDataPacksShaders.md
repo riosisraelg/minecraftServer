@@ -43,6 +43,7 @@
 *These mods add content, items, or change mechanics. They MUST be on the server to work.*
 
 * **Another Furniture**
+* **Waystones**
 * **BetterDays** (Time control)
 * **Cloth Gamerules**
 * **Cobweb**
