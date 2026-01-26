@@ -9,7 +9,7 @@ This project deploys a smart, auto-scaling Minecraft server network on AWS. It u
 *   **💸 Smart Cost Savings**: Game server sleeps when empty; Proxy wakes it up instantly.
 *   **🌸 Beautiful Branding**: Custom MotD and Icon support built-in.
 *   **🛡️ Secure Design**: Game server is isolated in a private subnet.
-*   **⚡ Multiple Support**: Works with Vanilla, Fabric, and Forge.
+*   **⚡ Multiple Support**: Works with Vanilla, Fabric, Forge and PaperMC (Using Geycer for Bedrock comapbility).
 
 ## 🏁 Quick Start
 
