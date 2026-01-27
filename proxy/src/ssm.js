@@ -28,7 +28,7 @@ async function stopMinecraftService(instanceId) {
         "        sudo systemctl stop \"$SERVICE\"",
         "    done",
         
-        "    # 3. Sincronizar cambios en disco para asegurar la integridad de todos los mundos
+        // 3. Sincronizar cambios en disco para asegurar la integridad de todos los mundos
         "    sync",
         "    echo \"✨ Todos los servicios de Minecraft han sido detenidos correctamente.\"",
         "else",
