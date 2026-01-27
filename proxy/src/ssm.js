@@ -24,15 +24,15 @@ async function stopMinecraftService(instanceId) {
         
         // 2. Bucle para detener cada servicio de forma individual
         "    for SERVICE in $SERVICES; do",
-        "        echo \"Deteniendo: $SERVICE\"",
+        "        echo \"✅Deteniendo: $SERVICE\"",
         "        sudo systemctl stop \"$SERVICE\"",
         "    done",
         
         "    # 3. Sincronizar cambios en disco para asegurar la integridad de todos los mundos
         "    sync",
-        "    echo \"Todos los servicios de Minecraft han sido detenidos correctamente.\"",
+        "    echo \"✅Todos los servicios de Minecraft han sido detenidos correctamente.\"",
         "else",
-        "    echo \"No se encontraron servicios de Minecraft activos (01-, 02-, etc.) para cerrar.\"",
+        "    echo \"❌No se encontraron servicios de Minecraft activos (01-, 02-, etc.) para cerrar.\"",
         "fi"
     ];
 
